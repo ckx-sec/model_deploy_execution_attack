@@ -9,6 +9,8 @@ import argparse
 import json
 import shutil
 import tempfile
+import time # Import time for convergence check
+from concurrent.futures import ProcessPoolExecutor
 
 # --- Core Host Execution Logic (Largely Unchanged from other attackers) ---
 
@@ -43,6 +45,13 @@ def _run_executable_and_parse_success(image_path_on_host, args):
                 
     return is_successful
 
+def _check_image_is_adversarial_wrapper(args_tuple):
+    """
+    Wrapper for check_image_is_adversarial to be used with multiprocessing.Pool.map,
+    as instance methods cannot be pickled easily.
+    """
+    return check_image_is_adversarial(*args_tuple)
+
 def check_image_is_adversarial(image_content, args, workdir, image_name_on_host):
     """
     A helper function that takes raw image bytes, writes them to a temporary file,
@@ -63,6 +72,8 @@ def main(args):
     dist_log_file = None
     adversarial_image = None
     best_l2_distance = float('inf')
+    last_best_l2_distance = float('inf')
+    patience_counter = 0
 
     try:
         os.setpgrp()
@@ -94,8 +105,25 @@ def main(args):
                 raise FileNotFoundError(f"Required file not found: {f}")
 
         # --- Initial Setup for Boundary Attack ---
-        original_image = cv2.imread(args.image, cv2.IMREAD_GRAYSCALE).astype(np.float32)
-        adversarial_image = cv2.imread(args.start_adversarial, cv2.IMREAD_GRAYSCALE).astype(np.float32)
+        # MODIFICATION: Load images in color (3 channels) instead of grayscale
+        print("--- Loading images in COLOR mode ---")
+        original_image = cv2.imread(args.image, cv2.IMREAD_COLOR).astype(np.float32)
+        adversarial_image = cv2.imread(args.start_adversarial, cv2.IMREAD_COLOR).astype(np.float32)
+
+        if original_image is None:
+            raise FileNotFoundError(f"Failed to load original image at: {args.image}")
+        if adversarial_image is None:
+            raise FileNotFoundError(f"Failed to load starting adversarial image at: {args.start_adversarial}")
+        
+        # MODIFICATION: Automatically resize the starting adversarial image if dimensions do not match
+        if original_image.shape != adversarial_image.shape:
+            print(f"Warning: Original image shape {original_image.shape} and starting adversarial shape {adversarial_image.shape} differ.")
+            print("Resizing starting adversarial image to match original image's dimensions.")
+            adversarial_image = cv2.resize(
+                adversarial_image, 
+                (original_image.shape[1], original_image.shape[0]), 
+                interpolation=cv2.INTER_AREA
+            )
 
         print("--- Verifying initial image states ---")
         _, encoded_orig = cv2.imencode(".png", original_image.astype(np.uint8))
@@ -112,59 +140,99 @@ def main(args):
         
         query_count = 2 # We've already made two queries
 
-        for i in range(args.iterations):
-            print(f"--- Iteration {i+1}/{args.iterations} (Total Queries: {query_count}) ---")
+        # MODIFICATION: Use ProcessPoolExecutor for parallel execution
+        with ProcessPoolExecutor(max_workers=args.workers) as executor:
+            for i in range(args.iterations):
+                print(f"--- Iteration {i+1}/{args.iterations} (Total Queries: {query_count}) ---")
 
-            # 1. Try to move closer to the original image (Source Step)
-            trial_image = (1 - args.source_step) * adversarial_image + args.source_step * original_image
-            
-            _, encoded_trial = cv2.imencode(".png", np.clip(trial_image, 0, 255).astype(np.uint8))
-            is_successful = check_image_is_adversarial(encoded_trial.tobytes(), args, workdir, "temp_trial.png")
-            query_count += 1
-            
-            if is_successful:
-                adversarial_image = trial_image
-                print(f"Source step successful. Moved closer to original.")
-            else:
-                # 2. If moving closer fails, explore along the boundary (Spherical Step)
-                direction_to_original = original_image - adversarial_image
-                dist_to_original = np.linalg.norm(direction_to_original)
-
-                # Generate a random perturbation
-                perturbation = np.random.randn(*original_image.shape).astype(np.float32)
+                # 1. Try to move closer to the original image (Source Step)
+                trial_image = (1 - args.source_step) * adversarial_image + args.source_step * original_image
                 
-                # Project perturbation to be orthogonal to the direction vector
-                perturbation -= np.dot(perturbation.flatten(), direction_to_original.flatten()) / (dist_to_original**2) * direction_to_original
-                
-                # Rescale the perturbation
-                perturbation *= args.spherical_step * dist_to_original / np.linalg.norm(perturbation)
-
-                trial_image = adversarial_image + perturbation
-
                 _, encoded_trial = cv2.imencode(".png", np.clip(trial_image, 0, 255).astype(np.uint8))
-                is_successful = check_image_is_adversarial(encoded_trial.tobytes(), args, workdir, "temp_trial.png")
+                is_successful = check_image_is_adversarial(encoded_trial.tobytes(), args, workdir, "temp_trial_source.png")
                 query_count += 1
-
+                
                 if is_successful:
                     adversarial_image = trial_image
-                    print(f"Spherical step successful. Explored boundary.")
+                    print(f"Source step successful. Moved closer to original.")
+                else:
+                    # 2. If moving closer fails, explore along the boundary in parallel (Spherical Step)
+                    print(f"Source step failed. Exploring boundary with {args.workers} workers...")
+                    
+                    direction_to_original = original_image - adversarial_image
+                    dist_to_original = np.linalg.norm(direction_to_original)
 
-            # Logging and saving
-            l2_dist = np.linalg.norm(adversarial_image - original_image)
-            linf_dist = np.max(np.abs(adversarial_image - original_image))
+                    # Prepare arguments for parallel execution
+                    starmap_args = []
+                    trial_images_for_workers = []
+
+                    for worker_idx in range(args.workers):
+                        # Generate a random perturbation
+                        perturbation = np.random.randn(*original_image.shape).astype(np.float32)
+                        
+                        # Project perturbation to be orthogonal
+                        perturbation -= np.dot(perturbation.flatten(), direction_to_original.flatten()) / (dist_to_original**2 + 1e-9) * direction_to_original
+                        
+                        # Rescale
+                        perturbation *= args.spherical_step * dist_to_original / (np.linalg.norm(perturbation) + 1e-9)
+
+                        trial_image = adversarial_image + perturbation
+                        trial_images_for_workers.append(trial_image)
+
+                        _, encoded_trial = cv2.imencode(".png", np.clip(trial_image, 0, 255).astype(np.uint8))
+                        
+                        # Unique name for each worker's temp file
+                        image_name = f"temp_trial_spherical_{worker_idx}.png"
+                        starmap_args.append((encoded_trial.tobytes(), args, workdir, image_name))
+
+                    # Run checks in parallel
+                    # Use a lambda to unpack the tuple of arguments for each map call
+                    results = executor.map(lambda p: check_image_is_adversarial(*p), starmap_args)
+                    query_count += args.workers
+                    
+                    # Check if any worker found a valid adversarial example
+                    step_succeeded = False
+                    for worker_idx, success in enumerate(results):
+                        if success:
+                            adversarial_image = trial_images_for_workers[worker_idx]
+                            print(f"Spherical step successful (from worker {worker_idx}). Explored boundary.")
+                            step_succeeded = True
+                            break # Found one, no need to check others
+
+                    if not step_succeeded:
+                        print("Spherical step failed for all workers in this iteration.")
+
+                # Logging and saving
+                l2_dist = np.linalg.norm(adversarial_image - original_image)
+                linf_dist = np.max(np.abs(adversarial_image - original_image))
             
-            print(f"Current L2 distance: {l2_dist:.4f}, L-inf norm: {linf_dist:.4f}")
-            dist_log_file.write(f"{i+1},{query_count},{l2_dist:.6f},{linf_dist:.6f}\n")
-            dist_log_file.flush()
+                print(f"Current L2 distance: {l2_dist:.4f}, L-inf norm: {linf_dist:.4f}")
+                dist_log_file.write(f"{i+1},{query_count},{l2_dist:.6f},{linf_dist:.6f}\n")
+                dist_log_file.flush()
 
-            latest_image_path = os.path.join(args.output_dir, "latest_attack_image_boundary_host.png")
-            cv2.imwrite(latest_image_path, adversarial_image.astype(np.uint8))
+                latest_image_path = os.path.join(args.output_dir, "latest_attack_image_boundary_host.png")
+                cv2.imwrite(latest_image_path, adversarial_image.astype(np.uint8))
 
-            if l2_dist < best_l2_distance:
-                best_l2_distance = l2_dist
-                print(f"New best L2 distance found: {l2_dist:.4f}. Saving best image.")
-                best_image_path = os.path.join(args.output_dir, "best_attack_image_boundary_host.png")
-                cv2.imwrite(best_image_path, adversarial_image.astype(np.uint8))
+                if l2_dist < best_l2_distance:
+                    best_l2_distance = l2_dist
+                    print(f"New best L2 distance found: {l2_dist:.4f}. Saving best image.")
+                    best_image_path = os.path.join(args.output_dir, "best_attack_image_boundary_host.png")
+                    cv2.imwrite(best_image_path, adversarial_image.astype(np.uint8))
+                
+                # MODIFICATION: Convergence Check
+                if abs(last_best_l2_distance - best_l2_distance) < args.convergence_threshold:
+                    patience_counter += 1
+                    print(f"Convergence patience counter: {patience_counter}/{args.patience}")
+                else:
+                    patience_counter = 0 # Reset counter if there is improvement
+
+                last_best_l2_distance = best_l2_distance
+                
+                if patience_counter >= args.patience:
+                    print(f"\n--- CONVERGENCE REACHED ---")
+                    print(f"L2 distance has not improved by more than {args.convergence_threshold} for {args.patience} iterations.")
+                    print("Stopping attack early.")
+                    break
 
 
     except (FileNotFoundError, RuntimeError, KeyboardInterrupt) as e:
@@ -194,7 +262,10 @@ if __name__ == "__main__":
     parser.add_argument("--iterations", type=int, default=10000, help="Maximum number of attack iterations.")
     parser.add_argument("--source-step", type=float, default=0.01, help="Step size for moving towards the source image.")
     parser.add_argument("--spherical-step", type=float, default=0.01, help="Step size for spherical boundary exploration.")
+    parser.add_argument("--patience", type=int, default=50, help="Number of iterations to wait for improvement before stopping early.")
+    parser.add_argument("--convergence-threshold", type=float, default=1e-4, help="The minimum L2 distance improvement to reset the patience counter.")
     # System
+    parser.add_argument("--workers", type=int, default=4, help="Number of parallel workers for the spherical step. Defaults to 4.")
     parser.add_argument("--output-dir", type=str, default="attack_outputs_boundary_host", help="Directory to save output images and logs.")
     
     cli_args = parser.parse_args()

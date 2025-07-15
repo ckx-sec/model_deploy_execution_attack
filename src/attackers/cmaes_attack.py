@@ -88,13 +88,13 @@ def evaluate_cma_solution(task_args):
     It takes a solution vector, creates the image, runs evaluation, and returns the loss.
     """
     solution_vector, original_image_flat, image_shape, temp_image_path, target_hooks, args = task_args
-    h, w = image_shape
+    h, w, c = image_shape
 
     # 1. Recreate the image from the solution vector
     attack_image_flat = original_image_flat + solution_vector
     
     # 2. Reshape and clip to valid image constraints
-    attack_image = np.clip(attack_image_flat.reshape(h, w), 0, 255)
+    attack_image = np.clip(attack_image_flat.reshape(h, w, c), 0, 255)
     
     # 3. Write image to disk for the executable
     _, encoded_image = cv2.imencode(".png", attack_image.astype(np.uint8))
@@ -183,7 +183,7 @@ def main(args):
                 raise FileNotFoundError(f"Required file not found: {f}")
 
         print("--- Getting target state from golden image ---")
-        golden_image = cv2.imread(args.golden_image, cv2.IMREAD_GRAYSCALE)
+        golden_image = cv2.imread(args.golden_image, cv2.IMREAD_COLOR)
         if golden_image is None: raise FileNotFoundError(f"Could not read golden image: {args.golden_image}")
         # Resize to fixed attack resolution
         golden_image = cv2.resize(golden_image, (ATTACK_RESOLUTION_HW[1], ATTACK_RESOLUTION_HW[0]), interpolation=cv2.INTER_AREA)
@@ -195,14 +195,14 @@ def main(args):
             raise RuntimeError("Golden run failed or captured no hooks. Cannot proceed.")
         print(f"Target hooks captured: {target_hooks}")
 
-        # Keep a copy of the original full-resolution image for final output
-        original_image_full_res = cv2.imread(args.image, cv2.IMREAD_GRAYSCALE)
+        # Keep a copy of the original full-resolution image for reference if needed, but we attack the low-res version.
+        original_image_full_res = cv2.imread(args.image, cv2.IMREAD_COLOR)
         if original_image_full_res is None: raise FileNotFoundError(f"Could not read original image: {args.image}")
         # Resize to fixed attack resolution for the optimization process
         original_image = cv2.resize(original_image_full_res, (ATTACK_RESOLUTION_HW[1], ATTACK_RESOLUTION_HW[0]), interpolation=cv2.INTER_AREA)
 
-        h, w = original_image.shape
-        image_dimensionality = h * w
+        h, w, c = original_image.shape
+        image_dimensionality = h * w * c
         
         # We are optimizing the PERTURBATION, not the image itself.
         # The initial solution is a zero vector, meaning no perturbation.
@@ -239,7 +239,7 @@ def main(args):
             for i, p_vec in enumerate(perturbation_vectors):
                 temp_image_name = f"temp_cmaes_{run_id}_{i}.png"
                 temp_image_path = os.path.join(workdir, temp_image_name)
-                tasks.append((p_vec, original_image_flat, (h, w), temp_image_path, target_hooks, args))
+                tasks.append((p_vec, original_image_flat, (h, w, c), temp_image_path, target_hooks, args))
 
             # 3. Evaluate the fitness (loss) of each solution in parallel
             losses = np.zeros(len(perturbation_vectors))
@@ -263,37 +263,35 @@ def main(args):
             current_best_solution = es.result.xbest
             current_best_loss = es.result.fbest
 
-            # Upscale the low-resolution perturbation to the original image size for saving
-            h_orig, w_orig = original_image_full_res.shape
-            best_perturbation_low_res_img = np.clip(current_best_solution, -l_inf, l_inf).reshape(ATTACK_RESOLUTION_HW)
-            best_perturbation_high_res_img = cv2.resize(best_perturbation_low_res_img, (w_orig, h_orig), interpolation=cv2.INTER_CUBIC)
-            
-            # Add the upscaled perturbation to the original high-res image
-            final_high_res_image = np.clip(original_image_full_res.astype(np.float32) + best_perturbation_high_res_img, 0, 255).astype(np.uint8)
+            # --- MODIFICATION: Create and save the LOW-RESOLUTION attack image ---
+            # This is the image that was actually evaluated and is known to be effective.
+            # The perturbation is clipped to the L-inf norm constraint for correctness.
+            best_perturbation = np.clip(current_best_solution, -l_inf, l_inf).reshape(h, w, c)
+            final_attack_image = np.clip(original_image.astype(np.float32) + best_perturbation, 0, 255).astype(np.uint8)
 
             print(f"Best loss this generation: {np.min(losses):.6f}. Overall best loss: {current_best_loss:.6f}")
             loss_log_file.write(f"{iteration},{np.min(losses):.6f},{current_best_loss:.6f}\n")
             loss_log_file.flush()
 
-            # Save latest and best images (now in high resolution)
+            # Save latest and best images (now in low resolution, which is the validated result)
             latest_image_path = os.path.join(args.output_dir, "latest_attack_image_cmaes_host.png")
-            cv2.imwrite(latest_image_path, final_high_res_image)
+            cv2.imwrite(latest_image_path, final_attack_image)
 
             if current_best_loss < best_loss_so_far:
                 best_loss_so_far = current_best_loss
                 print(f"New best loss found: {best_loss_so_far:.6f}. Saving best image.")
                 best_image_path = os.path.join(args.output_dir, "best_attack_image_cmaes_host.png")
-                cv2.imwrite(best_image_path, final_high_res_image)
+                cv2.imwrite(best_image_path, final_attack_image)
             
             # Check for success condition on the downscaled image
-            best_attack_image_low_res = np.clip(original_image.astype(np.float32).flatten() + best_perturbation_low_res_img.flatten(), 0, 255).astype(np.uint8)
-            _, encoded_image = cv2.imencode(".png", best_attack_image_low_res.reshape(ATTACK_RESOLUTION_HW))
+            best_attack_image = final_attack_image # Keep track of the best raw image
+            _, encoded_image = cv2.imencode(".png", best_attack_image)
             is_successful, _ = run_attack_iteration_for_verification(encoded_image.tobytes(), args, workdir, "temp_verify.png")
 
             if is_successful:
                 print("\nAttack successful!")
                 successful_image_path = os.path.join(args.output_dir, "successful_attack_image_cmaes_host.png")
-                cv2.imwrite(successful_image_path, final_high_res_image)
+                cv2.imwrite(successful_image_path, best_attack_image)
                 print(f"Adversarial image saved to: {successful_image_path}")
                 break
 
@@ -302,16 +300,11 @@ def main(args):
 
     except (FileNotFoundError, RuntimeError, KeyboardInterrupt) as e:
         print(f"\nAn error or interrupt occurred: {e}")
-        # Also save the high-res image on interrupt
-        if best_attack_image is not None and original_image_full_res is not None:
+        # Also save the low-res image on interrupt
+        if best_attack_image is not None:
             print("Saving the last best image...")
-            h_orig, w_orig = original_image_full_res.shape
-            best_perturbation_low_res_img = np.clip(es.result.xbest, -l_inf, l_inf).reshape(ATTACK_RESOLUTION_HW)
-            best_perturbation_high_res_img = cv2.resize(best_perturbation_low_res_img, (w_orig, h_orig), interpolation=cv2.INTER_CUBIC)
-            final_high_res_image = np.clip(original_image_full_res.astype(np.float32) + best_perturbation_high_res_img, 0, 255).astype(np.uint8)
-            
             interrupted_image_path = os.path.join(args.output_dir, "interrupted_attack_image_cmaes_host.png")
-            cv2.imwrite(interrupted_image_path, final_high_res_image)
+            cv2.imwrite(interrupted_image_path, best_attack_image)
             print(f"Last best image saved to: {interrupted_image_path}")
     finally:
         if loss_log_file:
