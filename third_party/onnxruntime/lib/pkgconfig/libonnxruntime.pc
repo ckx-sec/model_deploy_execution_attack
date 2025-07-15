@@ -1,0 +1,13 @@
+prefix=/workspace/model_deploy_dataset/third_party_builds/onnxruntime_source/build_static/install
+bindir=${prefix}/bin
+mandir=${prefix}/share/man
+docdir=${prefix}/share/doc/onnxruntime
+libdir=${prefix}/lib
+includedir=${prefix}/include/onnxruntime
+
+Name: onnxruntime
+Description: ONNX runtime
+URL: https://github.com/microsoft/onnxruntime
+Version: 1.23.0
+Libs: -L${libdir} -lonnxruntime
+Cflags: -I${includedir}

@@ -1,0 +1,101 @@
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+#ifndef _ST_HPC_PPL_NN_RUNTIME_TENSOR_H_
+#define _ST_HPC_PPL_NN_RUNTIME_TENSOR_H_
+
+#include "ppl/common/retcode.h"
+#include "ppl/nn/common/tensor_shape.h"
+#include "ppl/nn/common/device_context.h"
+#include "ppl/nn/common/common.h"
+
+namespace ppl { namespace nn {
+
+class PPLNN_PUBLIC Tensor {
+public:
+    virtual ~Tensor() {}
+
+    /** @brief returns tensor's name */
+    virtual const char* GetName() const = 0;
+
+    /** @brief returns tensor's shape */
+    virtual TensorShape* GetShape() const = 0;
+
+    /**
+       @brief copies tensor's data to `dst`, which points to a host memory.
+       @note `dst` MUST have enough space.
+    */
+    virtual ppl::common::RetCode CopyToHost(void* dst) const = 0;
+
+    /**
+       @brief asynchronously copies tensor's data to `dst`, which points to the host memory.
+       @note `dst` MUST have enough space.
+    */
+    virtual ppl::common::RetCode CopyToHostAsync(void* dst) const = 0;
+
+    /** @brief copies tensor's data from `src`, which points to the host memory. */
+    virtual ppl::common::RetCode CopyFromHost(const void* src) = 0;
+
+    /** @brief asynchronously copy tensor's data from `src`, which points to a host memory. */
+    virtual ppl::common::RetCode CopyFromHostAsync(const void* src) = 0;
+
+    /**
+       @brief converts tensor's data to `dst` with shape `dst_desc`.
+       @note `dst` MUST have enough space.
+    */
+    virtual ppl::common::RetCode ConvertToHost(void* dst, const TensorShape& dst_desc) const = 0;
+
+    /**
+       @brief converts tensor's data to `dst` with shape `dst_desc` asynchronously.
+       @note `dst` MUST have enough space.
+    */
+    virtual ppl::common::RetCode ConvertToHostAsync(void* dst, const TensorShape& dst_desc) const = 0;
+
+    /** @brief converts tensor's data from `src` with shape `src_desc`. */
+    virtual ppl::common::RetCode ConvertFromHost(const void* src, const TensorShape& src_desc) = 0;
+
+    /** @brief converts tensor's data from `src` with shape `src_desc` asynchronously. */
+    virtual ppl::common::RetCode ConvertFromHostAsync(const void* src, const TensorShape& src_desc) = 0;
+
+    /** @brief get context of the underlying `Device` */
+    virtual DeviceContext* GetDeviceContext() const = 0;
+
+    /**
+       @brief set the device `DeviceContext` of this tensor to `ctx`
+       @note this tensor's buffer will be released before `ctx` is set.
+    */
+    virtual void SetDeviceContext(DeviceContext* ctx) = 0;
+
+    /**
+       @brief returns buffer to the underlying device.
+       @note if buffer is set via `SetBufferPtr()`, this function just sets the buffer ptr to nullptr.
+    */
+    virtual void FreeBuffer() = 0;
+
+    /**
+       @brief set the underlying buffer ptr
+       @param buf buffer ptr that can be read/written by the internal `Device` class.
+    */
+    virtual void SetBufferPtr(void* buf) = 0;
+
+    /** @brief get the underlying buffer ptr */
+    virtual void* GetBufferPtr() const = 0;
+};
+
+}} // namespace ppl::nn
+
+#endif
