@@ -196,8 +196,8 @@ def main(args):
     best_attack_image = None
     best_loss_so_far = float('inf')
 
-    # Define a smaller, fixed resolution for the attack to avoid memory issues with CMA-ES
-    ATTACK_RESOLUTION_HW = (64, 64)
+    # Define a smaller, maximum resolution for the attack to avoid memory issues with CMA-ES
+    MAX_ATTACK_RESOLUTION_HW = (64, 64)
 
     # --- Graceful Termination on Ctrl+C (Unchanged) ---
     try:
@@ -235,8 +235,18 @@ def main(args):
         print("--- Getting target state from golden image ---")
         golden_image = cv2.imread(args.golden_image, cv2.IMREAD_COLOR)
         if golden_image is None: raise FileNotFoundError(f"Could not read golden image: {args.golden_image}")
-        # Resize to fixed attack resolution
-        golden_image = cv2.resize(golden_image, (ATTACK_RESOLUTION_HW[1], ATTACK_RESOLUTION_HW[0]), interpolation=cv2.INTER_AREA)
+
+        # Determine attack resolution. If image is smaller than max, use its own size.
+        h_orig, w_orig, _ = golden_image.shape
+        max_h, max_w = MAX_ATTACK_RESOLUTION_HW
+        if h_orig > max_h or w_orig > max_w:
+            print(f"Golden image ({h_orig}x{w_orig}) is larger than max resolution ({max_h}x{max_w}). Resizing down.")
+            attack_resolution_hw = (max_h, max_w)
+            golden_image = cv2.resize(golden_image, (attack_resolution_hw[1], attack_resolution_hw[0]), interpolation=cv2.INTER_AREA)
+        else:
+            print(f"Golden image ({h_orig}x{w_orig}) is smaller than or equal to max resolution. Using its original size.")
+            attack_resolution_hw = (h_orig, w_orig)
+
 
         _, encoded_golden = cv2.imencode(".png", golden_image)
         is_golden_ok, target_hooks = run_attack_iteration_for_verification(encoded_golden.tobytes(), args, workdir, "temp_golden.png")
@@ -245,11 +255,13 @@ def main(args):
             raise RuntimeError("Golden run failed or captured no hooks. Cannot proceed.")
         print(f"Target hooks captured: {target_hooks}")
 
-        # Keep a copy of the original full-resolution image for reference if needed, but we attack the low-res version.
+        # Keep a copy of the original full-resolution image for reference if needed.
         original_image_full_res = cv2.imread(args.image, cv2.IMREAD_COLOR)
         if original_image_full_res is None: raise FileNotFoundError(f"Could not read original image: {args.image}")
-        # Resize to fixed attack resolution for the optimization process
-        original_image = cv2.resize(original_image_full_res, (ATTACK_RESOLUTION_HW[1], ATTACK_RESOLUTION_HW[0]), interpolation=cv2.INTER_AREA)
+        
+        # Resize original image to match the determined attack resolution for consistency.
+        print(f"Resizing original image to match attack resolution: {attack_resolution_hw[0]}x{attack_resolution_hw[1]}")
+        original_image = cv2.resize(original_image_full_res, (attack_resolution_hw[1], attack_resolution_hw[0]), interpolation=cv2.INTER_AREA)
 
         h, w, c = original_image.shape
         image_dimensionality = h * w * c

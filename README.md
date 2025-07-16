@@ -69,11 +69,11 @@ python3 src/attackers/nes_attack.py \
 ### CMA-ES Attack (Gray-box, State-matching)
 ```bash
 python3 src/attackers/cmaes_attack.py \
-    --executable assets/bin/ssrnet_age_mnn \
-    --model assets/ssrnet.mnn \
-    --hooks configs/hook_ssrnet.json \
-    --golden-image assets/test_lite_age_googlenet.jpg \
-    --image assets/test_lite_age_googlenet_old2.jpg \
+    --executable resources/execution_files/mnist_mnn \
+    --model resources/models/mnist.mnn \
+    --hooks hook_config/mnist_mnn_hook_config.json \
+    --golden-image resources/images/mnist_sample/7/7_0.png \
+    --image resources/images/mnist_sample/0/0_0.png \
     --output-dir outputs/cmaes_attack_1 \
     --iterations 100 \
     --population-size 100 \

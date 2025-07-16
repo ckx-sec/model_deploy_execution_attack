@@ -524,25 +524,25 @@ if __name__ == "__main__":
     parser.add_argument("--model", required=True, help="Local path to the model file (e.g., .onnx).")
     parser.add_argument("--golden-image", required=True, help="Local path to the image that produces the target state.")
     # Attack Hyperparameters
-    parser.add_argument("--iterations", type=int, default=10000, help="Maximum number of attack iterations.")
-    parser.add_argument("--learning-rate", type=float, default=2.0, help="Initial learning rate for the attack.")
+    parser.add_argument("--iterations", type=int, default=100, help="Maximum number of attack iterations.")
+    parser.add_argument("--learning-rate", type=float, default=20.0, help="Initial learning rate for the attack.")
     parser.add_argument("--l-inf-norm", type=float, default=20.0, help="Maximum L-infinity norm for the perturbation.")
     parser.add_argument("--lr-decay-rate", type=float, default=0.97, help="Learning rate decay rate.")
     parser.add_argument("--lr-decay-steps", type=int, default=10, help="Decay learning rate every N steps.")
     # NES Hyperparameters
-    parser.add_argument("--population-size", type=int, default=50, help="Population size for NES. Must be even.")
-    parser.add_argument("--sigma", type=float, default=0.1, help="Sigma for NES.")
+    parser.add_argument("--population-size", type=int, default=200, help="Population size for NES. Must be even.")
+    parser.add_argument("--sigma", type=float, default=0.15, help="Sigma for NES.")
     # Hyperparameter Scheduling
     schedule_group = parser.add_argument_group("Hyperparameter Scheduling")
     schedule_group.add_argument("--enable-schedule", action="store_true", help="Enable the two-phase (explore/tune) hyperparameter schedule.")
     schedule_group.add_argument("--tune-sigma", type=float, default=1.0, help="Sigma for the fine-tuning phase.")
     schedule_group.add_argument("--tune-population-size", type=int, default=20, help="Population size for the fine-tuning phase.")
     schedule_group.add_argument("--tuning-patience", type=int, default=5, help="Iterations with no improvement before switching to tuning phase.")
-    schedule_group.add_argument("--min-loss-delta", type=float, default=1e-4, help="Minimum change in loss to be considered an improvement.")
+    schedule_group.add_argument("--min-loss-delta", type=float, default=0.01, help="Minimum change in loss to be considered an improvement.")
     # Stagnation-Resetting Decay
     stagnation_group = parser.add_argument_group("Stagnation-Resetting Decay")
     stagnation_group.add_argument("--enable-stagnation-decay", action="store_true", help="Enable decay-and-reset when loss stagnates.")
-    stagnation_group.add_argument("--stagnation-patience", type=int, default=30, help="Iterations before forcing a decay.")
+    stagnation_group.add_argument("--stagnation-patience", type=int, default=10, help="Iterations before forcing a decay.")
     # Cosine Annealing with Warm Restarts
     warm_restart_group = parser.add_argument_group("Cosine Annealing with Warm Restarts")
     warm_restart_group.add_argument("--enable-warm-restarts", action="store_true", help="Enable Cosine Annealing with Warm Restarts.")

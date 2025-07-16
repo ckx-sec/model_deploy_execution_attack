@@ -210,8 +210,9 @@ def main(args):
             if not os.path.exists(f):
                 raise FileNotFoundError(f"Required file not found: {f}")
 
-        original_image = cv2.imread(args.image, cv2.IMREAD_GRAYSCALE).astype(np.float32)
-        adversarial_image = cv2.imread(args.start_adversarial, cv2.IMREAD_GRAYSCALE).astype(np.float32)
+        print("--- Loading images in COLOR mode ---")
+        original_image = cv2.imread(args.image, cv2.IMREAD_COLOR).astype(np.float32)
+        adversarial_image = cv2.imread(args.start_adversarial, cv2.IMREAD_COLOR).astype(np.float32)
 
         # 自动处理尺寸不一致
         if original_image.shape != adversarial_image.shape:
@@ -234,18 +235,31 @@ def main(args):
         for i in range(args.iterations):
             print(f"--- Iteration {i+1}/{args.iterations} (Total Queries: {query_counter_ref[0]}) ---")
 
-            # 1. Binary search to find the boundary
+            # 1. Hop: Binary search to find the boundary
             boundary_point = binary_search_to_boundary(original_image, adversarial_image, args, workdir, query_counter_ref)
 
-            # 2. Estimate gradient at the boundary
+            # 2. Skip Part 1: Estimate gradient at the boundary
             grad = estimate_gradient_at_boundary(boundary_point, original_image, args, workdir, query_counter_ref)
 
-            # 3. Take step
-            step_size = np.linalg.norm(original_image - boundary_point) * args.step_size
-            adversarial_image = boundary_point + step_size * grad
+            # 3. Skip Part 2: Take step with decay
+            current_step_factor = args.step_size * (args.step_size_decay ** i)
+            step_size = np.linalg.norm(original_image - boundary_point) * current_step_factor
+            candidate_image = boundary_point + step_size * grad
 
             # 4. Project to valid range
-            adversarial_image = np.clip(adversarial_image, 0, 255)
+            candidate_image = np.clip(candidate_image, 0, 255)
+
+            # 5. Jump: Check if candidate is adversarial, if so, project it back to the boundary
+            _, encoded_candidate = cv2.imencode(".png", candidate_image.astype(np.uint8))
+            query_counter_ref[0] += 1
+            if _check_image_is_adversarial_sequential(encoded_candidate.tobytes(), args, workdir):
+                print("Step successful, projecting new candidate back to the boundary (Jump).")
+                adversarial_image = binary_search_to_boundary(original_image, candidate_image, args, workdir, query_counter_ref)
+            else:
+                print("Step failed, candidate is not adversarial. No update in this iteration.")
+                # If the step failed, we don't update `adversarial_image`.
+                # The next iteration's "Hop" will start from the same point as this one.
+
 
             # Logging and saving
             l2_dist = np.linalg.norm(adversarial_image - original_image)
@@ -287,7 +301,8 @@ if __name__ == "__main__":
     parser.add_argument("--binary-search-steps", type=int, default=10, help="Number of binary search steps to find the boundary.")
     parser.add_argument("--num-grad-queries", type=int, default=200, help="Number of samples to estimate gradient.")
     parser.add_argument("--grad-estimation-delta", type=float, default=0.1, help="Radius for gradient estimation probes.")
-    parser.add_argument("--step-size", type=float, default=0.01, help="Step size for moving away from the boundary.")
+    parser.add_argument("--step-size", type=float, default=0.01, help="Initial step size factor for moving away from the boundary.")
+    parser.add_argument("--step-size-decay", type=float, default=0.99, help="Decay rate for the step size factor after each iteration.")
     # System
     parser.add_argument("--workers", type=int, default=os.cpu_count(), help="Number of parallel processes for gradient estimation.")
     parser.add_argument("--output-dir", type=str, default="attack_outputs_hopskip_host", help="Directory to save output images and logs.")
