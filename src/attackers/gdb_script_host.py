@@ -10,10 +10,11 @@ class HookBreakpoint(gdb.Breakpoint):
     """
     Custom breakpoint that prints register values in a machine-readable format.
     """
-    def __init__(self, address, registers_to_watch):
-        super(HookBreakpoint, self).__init__(address, gdb.BP_BREAKPOINT, internal=True)
+    def __init__(self, address_str, relative_addr_str, registers_to_watch):
+        super(HookBreakpoint, self).__init__(address_str, gdb.BP_BREAKPOINT, internal=True)
         self.registers = registers_to_watch
-        self.address_str = address
+        self.address_str = address_str
+        self.relative_addr_str = relative_addr_str
 
     def stop(self):
         """
@@ -29,13 +30,13 @@ class HookBreakpoint(gdb.Breakpoint):
             if item.startswith(('x', 's', 'w', 'd')):
                 try:
                     value = gdb.parse_and_eval(f"${item}")
-                    print(f"HOOK_RESULT: address={self.address_str} register={item} value={value}")
+                    print(f"HOOK_RESULT: offset={self.relative_addr_str} address={self.address_str} register={item} value={value}")
                 except gdb.error as e:
                     print(f"HOOK_ERROR: Could not read register {item} at {self.address_str}: {e}")
             else:
                 try:
                     value = gdb.parse_and_eval(item)
-                    print(f"HOOK_RESULT: address={self.address_str} immediate={item} value={value}")
+                    print(f"HOOK_RESULT: offset={self.relative_addr_str} address={self.address_str} immediate={item} value={value}")
                 except gdb.error as e:
                     print(f"HOOK_ERROR: Could not evaluate immediate {item} at {self.address_str}: {e}")
         
@@ -92,7 +93,7 @@ def set_breakpoints(base_address, hooks_path):
         try:
             relative_addr = int(hook['address'], 16)
             absolute_addr = base_address + relative_addr
-            HookBreakpoint(f"*{hex(absolute_addr)}", hook['registers'])
+            HookBreakpoint(f"*{hex(absolute_addr)}", hook['address'], hook['registers'])
             print(f"[GDB SCRIPT INFO] Set breakpoint at {hex(absolute_addr)} (base {hex(base_address)} + offset {hook['address']})")
         except Exception as e:
             print(f"[GDB SCRIPT ERROR] Failed to set breakpoint for hook {hook}: {e}")

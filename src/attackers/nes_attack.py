@@ -73,9 +73,9 @@ def _run_executable_and_parse_hooks(image_path_on_host, args):
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
         stderr = e.stderr if hasattr(e, 'stderr') else "Timeout or error during execution"
         print(f"Error running host executable for '{image_path_on_host}': {stderr}")
-        return False, []
+        return False, {}
 
-    hooked_values = []
+    hooked_values = {}
     is_successful = False
     full_output = result.stdout + "\n" + result.stderr
     output_lines = full_output.splitlines()
@@ -83,15 +83,25 @@ def _run_executable_and_parse_hooks(image_path_on_host, args):
     for line in output_lines:
         if "true" in line.lower() and "HOOK_RESULT" not in line: is_successful = True
         if "HOOK_RESULT" in line:
-            val_str_match = re.search(r'value=(.*)', line)
-            if not val_str_match: continue
-            val_str = val_str_match.group(1).strip()
+            match = re.search(r'offset=(0x[0-9a-fA-F]+)\s+.*value=(.*)', line)
+            if not match: continue
+            
+            offset, val_str = match.groups()
+            val_str = val_str.strip()
+
             try:
+                value = None
                 if val_str.startswith('{'):
                     float_match = re.search(r'f\s*=\s*([-\d.e+]+)', val_str)
-                    if float_match: hooked_values.append(float(float_match.group(1)))
+                    if float_match:
+                        value = float(float_match.group(1))
                 else:
-                    hooked_values.append(float(val_str))
+                    value = float(val_str)
+                
+                if value is not None:
+                    if offset not in hooked_values:
+                        hooked_values[offset] = []
+                    hooked_values[offset].append(value)
             except (ValueError, TypeError): pass
                 
     return is_successful, hooked_values
@@ -136,27 +146,49 @@ def run_attack_iteration(image_content, args, workdir, image_name_on_host):
 
 def calculate_loss(current_hooks, target_hooks, margin=0.0, weights=None):
     """
-    Calculates the loss by comparing hook pairs from the current state to the target state.
-    This loss function is designed for scenarios where each pair represents a comparison
-    against a threshold, aiming to replicate the comparison's outcome (e.g., value > threshold).
+    Calculates the loss by comparing hook values from the current state to the target state.
+    Loss is calculated as the mean squared error over all values in common hook addresses.
 
-    :param current_hooks: List of hook values from the current (attack) image.
-                          Expected format: [v1_current, t1_current, v2_current, t2_current, ...]
-    :param target_hooks: List of hook values from the golden image, which define the
-                         target relationships. Expected format: [v1_target, t1_target, ...]
-    :param margin: A safety margin to make the attack more robust for inequality checks.
-    :param weights: (Optional) A list of weights for the loss of each hook pair. Defaults to 1.
-    :return: A float representing the total loss, averaged over the number of pairs.
+    :param current_hooks: A dictionary mapping hook addresses to lists of values from the current (attack) image.
+                          Example: {"0x1234": [v1, v2], "0x5678": [v3, v4]}
+    :param target_hooks: A dictionary of hook addresses and values from the golden image.
+                         It defines the target state.
+    :param margin: Unused parameter, kept for compatibility.
+    :param weights: Unused parameter, kept for compatibility.
+    :return: A float representing the total loss, averaged over all common data points.
     """
-    if not isinstance(current_hooks, list) or not isinstance(target_hooks, list) or not current_hooks:
+    if not isinstance(current_hooks, dict) or not isinstance(target_hooks, dict) or not current_hooks or not target_hooks:
         return float('inf')
-    if len(current_hooks) != len(target_hooks) or len(current_hooks) % 2 != 0:
-        print(f"Warning: Hook count mismatch or not even. Current: {len(current_hooks)}, Target: {len(target_hooks)}")
+
+    common_addresses = set(current_hooks.keys()) & set(target_hooks.keys())
+
+    if not common_addresses:
+        print("Warning: No common hook addresses found between current and target states.")
         return float('inf')
-    #print(f"Current hooks: {current_hooks}")
-    current = np.array(current_hooks, dtype=np.float32)
-    target = np.array(target_hooks, dtype=np.float32)
-    return np.mean((current - target) ** 2)
+
+    total_squared_errors = []
+    
+    for addr in common_addresses:
+        current_vals = current_hooks.get(addr, [])
+        target_vals = target_hooks.get(addr, [])
+
+        if len(current_vals) != len(target_vals):
+            print(f"Warning: Hook count mismatch for address {addr}. Current: {len(current_vals)}, Target: {len(target_vals)}")
+            return float('inf')
+
+        if not current_vals:
+            continue
+
+        current_np = np.array(current_vals, dtype=np.float32)
+        target_np = np.array(target_vals, dtype=np.float32)
+        
+        squared_errors = (current_np - target_np) ** 2
+        total_squared_errors.extend(squared_errors.tolist())
+
+    if not total_squared_errors:
+        return 0.0
+
+    return np.mean(total_squared_errors)
 
 
 # --- NES Gradient Estimator (Optimized for Host) ---
@@ -304,8 +336,8 @@ def main(args):
         print("--- Preparing environment: Verifying local paths ---")
         # No need to copy files, just verify they exist
         static_files = [args.executable, args.model, args.hooks]
-        gdb_script_path = os.path.join(os.path.dirname(__file__), "gdb_script.py")
-        static_files.append(gdb_script_path) # Assumes gdb_script.py is still used by the host runner
+        gdb_script_path = os.path.join(os.path.dirname(__file__), "gdb_script_host.py")
+        static_files.append(gdb_script_path) # Assumes gdb_script_host.py is still used by the host runner
         
         for f in static_files:
             if not os.path.exists(f):
@@ -384,7 +416,7 @@ def main(args):
             is_success_encoding, encoded_image = cv2.imencode(".png", attack_image.astype(np.uint8))
             if not is_success_encoding:
                 print("Warning: Failed to encode attack image for verification.")
-                is_successful, current_hooks, loss = False, [], float('inf')
+                is_successful, current_hooks, loss = False, {}, float('inf')
             else:
                 # Use run_attack_iteration for the final check of the main attack image
                 is_successful, current_hooks = run_attack_iteration(encoded_image.tobytes(), args, workdir, "temp_attack_image.png")

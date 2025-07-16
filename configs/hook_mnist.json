@@ -1,0 +1,162 @@
+[
+    {
+        "address": "0x2108",
+        "instruction": "fcmpe",
+        "registers": [
+            "s0",
+            "s7"
+        ]
+    },
+    {
+        "address": "0x212c",
+        "instruction": "fcmpe",
+        "registers": [
+            "s7",
+            "s6"
+        ]
+    },
+    {
+        "address": "0x2134",
+        "instruction": "fcmpe",
+        "registers": [
+            "s6",
+            "s5"
+        ]
+    },
+    {
+        "address": "0x213c",
+        "instruction": "fcmpe",
+        "registers": [
+            "s5",
+            "s4"
+        ]
+    },
+    {
+        "address": "0x2144",
+        "instruction": "fcmpe",
+        "registers": [
+            "s4",
+            "s3"
+        ]
+    },
+    {
+        "address": "0x214c",
+        "instruction": "fcmpe",
+        "registers": [
+            "s3",
+            "s2"
+        ]
+    },
+    {
+        "address": "0x2154",
+        "instruction": "fcmpe",
+        "registers": [
+            "s2",
+            "s1"
+        ]
+    },
+    {
+        "address": "0x215c",
+        "instruction": "fcmpe",
+        "registers": [
+            "s1",
+            "s0"
+        ]
+    },
+    {
+        "address": "0x2164",
+        "instruction": "fcmpe",
+        "registers": [
+            "s9",
+            "s0"
+        ]
+    },
+    {
+        "address": "0x21e8",
+        "instruction": "fcmpe",
+        "registers": [
+            "s1",
+            "s0"
+        ]
+    },
+    {
+        "address": "0x21f8",
+        "instruction": "fcmpe",
+        "registers": [
+            "s0",
+            "s1"
+        ]
+    },
+    {
+        "address": "0x2204",
+        "instruction": "fcmpe",
+        "registers": [
+            "s1",
+            "s0"
+        ]
+    },
+    {
+        "address": "0x2210",
+        "instruction": "fcmpe",
+        "registers": [
+            "s0",
+            "s1"
+        ]
+    },
+    {
+        "address": "0x221c",
+        "instruction": "fcmpe",
+        "registers": [
+            "s1",
+            "s0"
+        ]
+    },
+    {
+        "address": "0x2228",
+        "instruction": "fcmpe",
+        "registers": [
+            "s0",
+            "s1"
+        ]
+    },
+    {
+        "address": "0x2234",
+        "instruction": "fcmpe",
+        "registers": [
+            "s1",
+            "s0"
+        ]
+    },
+    {
+        "address": "0x2240",
+        "instruction": "fcmpe",
+        "registers": [
+            "s1",
+            "s0"
+        ]
+    },
+    {
+        "address": "0x224c",
+        "instruction": "fcmpe",
+        "registers": [
+            "s1",
+            "s0"
+        ]
+    },
+    {
+        "address": "0x226c",
+        "instruction": "fcmpe",
+        "registers": [
+            "s0",
+            "s1"
+        ]
+    },
+    {
+        "address": "0x2258",
+        "instruction": "cmp",
+        "registers": [
+            "x0",
+            "0x1c"
+        ]
+    }
+]
