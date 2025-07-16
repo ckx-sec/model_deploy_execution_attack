@@ -5,6 +5,29 @@
 import gdb
 import json
 import os
+import struct
+
+def is_hex_float(s):
+    """
+    Checks if a string is a hex representation of a 32-bit float.
+    e.g., '0x3f800000'
+    """
+    if not isinstance(s, str) or not s.startswith('0x'):
+        return False
+    try:
+        # Must be 0x + 8 hex characters for a 32-bit float
+        if len(s) == 10:
+            int(s, 16)
+            return True
+    except ValueError:
+        return False
+    return False
+
+def hex_to_float(hex_str):
+    """
+    Converts a hex string representing a 32-bit float to a Python float.
+    """
+    return struct.unpack('!f', struct.pack('!I', int(hex_str, 16)))[0]
 
 class HookBreakpoint(gdb.Breakpoint):
     """
@@ -27,18 +50,19 @@ class HookBreakpoint(gdb.Breakpoint):
             print("[GDB HOOK INFO] Could not retrieve frame information.")
         
         for item in self.registers:
-            if item.startswith(('x', 's', 'w', 'd')):
-                try:
+            try:
+                if item.startswith(('x', 's', 'w', 'd')):
                     value = gdb.parse_and_eval(f"${item}")
                     print(f"HOOK_RESULT: offset={self.relative_addr_str} address={self.address_str} register={item} value={value}")
-                except gdb.error as e:
-                    print(f"HOOK_ERROR: Could not read register {item} at {self.address_str}: {e}")
-            else:
-                try:
+                elif is_hex_float(item):
+                    value = hex_to_float(item)
+                    print(f"HOOK_RESULT: offset={self.relative_addr_str} address={self.address_str} immediate_float={item} value={value}")
+                else:
                     value = gdb.parse_and_eval(item)
                     print(f"HOOK_RESULT: offset={self.relative_addr_str} address={self.address_str} immediate={item} value={value}")
-                except gdb.error as e:
-                    print(f"HOOK_ERROR: Could not evaluate immediate {item} at {self.address_str}: {e}")
+            except gdb.error:
+                # Silently ignore if GDB cannot parse/evaluate the item.
+                pass
         
         return False
 

@@ -150,13 +150,5 @@
             "s0",
             "s1"
         ]
-    },
-    {
-        "address": "0x2258",
-        "instruction": "cmp",
-        "registers": [
-            "x0",
-            "0x1c"
-        ]
     }
 ]
