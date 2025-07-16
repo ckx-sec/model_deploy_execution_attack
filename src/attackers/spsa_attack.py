@@ -41,27 +41,34 @@ def _run_executable_and_parse_hooks(image_path_on_host, args):
     """
     Runs the executable on the host for a given image path and parses hook results.
     """
+    # Assuming run_gdb_host.sh is a new script adapted for the host,
+    # or the logic is brought directly into Python.
     script_path = os.path.join(os.path.dirname(__file__), "run_gdb_host.sh")
+    
+    # Paths are now all on the host filesystem.
     executable_on_host = args.executable
     model_on_host = args.model
 
+    # The script needs absolute paths to function correctly regardless of CWD.
+    # We explicitly call '/bin/bash' to avoid 'Exec format error' if the script itself doesn't have execute permissions.
     command = [
         '/bin/bash',
         script_path,
         os.path.abspath(executable_on_host),
         os.path.abspath(model_on_host),
         os.path.abspath(image_path_on_host),
-        os.path.abspath(args.hooks)
+        os.path.abspath(args.hooks) # Pass the absolute path to the hooks file as the last argument
     ]
 
     try:
+        # Use a longer timeout as GDB startup can be slow.
         result = subprocess.run(command, check=True, capture_output=True, text=True, timeout=60)
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
         stderr = e.stderr if hasattr(e, 'stderr') else "Timeout or error during execution"
         print(f"Error running host executable for '{image_path_on_host}': {stderr}")
-        return False, []
+        return False, {}
 
-    hooked_values = []
+    hooked_values = {}
     is_successful = False
     full_output = result.stdout + "\n" + result.stderr
     output_lines = full_output.splitlines()
@@ -69,17 +76,27 @@ def _run_executable_and_parse_hooks(image_path_on_host, args):
     for line in output_lines:
         if "true" in line.lower() and "HOOK_RESULT" not in line: is_successful = True
         if "HOOK_RESULT" in line:
-            val_str_match = re.search(r'value=(.*)', line)
-            if not val_str_match: continue
-            val_str = val_str_match.group(1).strip()
+            match = re.search(r'offset=(0x[0-9a-fA-F]+)\s+.*value=(.*)', line)
+            if not match: continue
+            
+            offset, val_str = match.groups()
+            val_str = val_str.strip()
+
             try:
+                value = None
                 if val_str.startswith('{'):
                     float_match = re.search(r'f\s*=\s*([-\d.e+]+)', val_str)
-                    if float_match: hooked_values.append(float(float_match.group(1)))
+                    if float_match:
+                        value = float(float_match.group(1))
                 else:
-                    hooked_values.append(float(val_str))
+                    value = float(val_str)
+                
+                if value is not None:
+                    if offset not in hooked_values:
+                        hooked_values[offset] = []
+                    hooked_values[offset].append(value)
             except (ValueError, TypeError): pass
-
+                
     return is_successful, hooked_values
 
 def evaluate_mutation_on_host(task_args):
@@ -104,18 +121,51 @@ def run_attack_iteration(image_content, args, workdir, image_name_on_host):
     os.remove(image_path_on_host)
     return is_successful, hooked_values
 
-def calculate_loss(current_hooks, target_hooks):
+def calculate_loss(current_hooks, target_hooks, margin=0.0, weights=None):
     """
-    Calculates MSE loss between current and target hook values.
+    Calculates the loss by comparing hook values from the current state to the target state.
+    Loss is calculated as the mean squared error over all values in common hook addresses.
+
+    :param current_hooks: A dictionary mapping hook addresses to lists of values from the current (attack) image.
+                          Example: {"0x1234": [v1, v2], "0x5678": [v3, v4]}
+    :param target_hooks: A dictionary of hook addresses and values from the golden image.
+                         It defines the target state.
+    :param margin: Unused parameter, kept for compatibility.
+    :param weights: Unused parameter, kept for compatibility.
+    :return: A float representing the total loss, averaged over all common data points.
     """
-    if not isinstance(current_hooks, list) or not isinstance(target_hooks, list) or not current_hooks:
+    if not isinstance(current_hooks, dict) or not isinstance(target_hooks, dict) or not current_hooks or not target_hooks:
         return float('inf')
-    if len(current_hooks) != len(target_hooks):
-        print(f"Warning: Hook count mismatch. Current: {len(current_hooks)}, Target: {len(target_hooks)}")
+
+    common_addresses = set(current_hooks.keys()) & set(target_hooks.keys())
+
+    if not common_addresses:
+        print("Warning: No common hook addresses found between current and target states.")
         return float('inf')
-    current = np.array(current_hooks, dtype=np.float32)
-    target = np.array(target_hooks, dtype=np.float32)
-    return np.mean((current - target) ** 2)
+
+    total_squared_errors = []
+    
+    for addr in common_addresses:
+        current_vals = current_hooks.get(addr, [])
+        target_vals = target_hooks.get(addr, [])
+
+        if len(current_vals) != len(target_vals):
+            print(f"Warning: Hook count mismatch for address {addr}. Current: {len(current_vals)}, Target: {len(target_vals)}")
+            return float('inf')
+
+        if not current_vals:
+            continue
+
+        current_np = np.array(current_vals, dtype=np.float32)
+        target_np = np.array(target_vals, dtype=np.float32)
+        
+        squared_errors = (current_np - target_np) ** 2
+        total_squared_errors.extend(squared_errors.tolist())
+
+    if not total_squared_errors:
+        return 0.0
+
+    return np.mean(total_squared_errors)
 
 
 # --- SPSA Gradient Estimator (New Core Logic) ---

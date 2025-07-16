@@ -1,0 +1,26 @@
+[
+    {
+        "address": "0x1fe0", 
+        "instruction": "b.ge", 
+        "registers": [
+            "s0", 
+            "Constant"
+        ]
+    }, 
+    {
+        "address": "0x1ff0", 
+        "instruction": "b.ls", 
+        "registers": [
+            "Constant", 
+            "s0"
+        ]
+    }, 
+    {
+        "address": "0x206c", 
+        "instruction": "b.ne", 
+        "registers": [
+            "UniquePcode[0x3e480]", 
+            "Constant"
+        ]
+    }
+]

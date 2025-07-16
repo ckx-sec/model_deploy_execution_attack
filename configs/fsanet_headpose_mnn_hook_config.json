@@ -1,0 +1,34 @@
+[
+    {
+        "address": "0x1ff4", 
+        "instruction": "b.mi", 
+        "registers": [
+            "0x40000000", 
+            "s0"
+        ]
+    }, 
+    {
+        "address": "0x2070", 
+        "instruction": "b.ne", 
+        "registers": [
+            "UniquePcode[0x3e480]", 
+            "0x0"
+        ]
+    }, 
+    {
+        "address": "0x209c", 
+        "instruction": "b.mi", 
+        "registers": [
+            "0x40000000", 
+            "s2"
+        ]
+    }, 
+    {
+        "address": "0x20b0", 
+        "instruction": "b.mi", 
+        "registers": [
+            "0x40000000", 
+            "s4"
+        ]
+    }
+]

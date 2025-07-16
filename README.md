@@ -75,14 +75,81 @@ python3 src/attackers/cmaes_attack.py \
 - 欢迎提交issue、PR或邮件交流。
 - 联系方式：请见项目主页或相关文档。
 
+This is the repository for our paper "Evading Deep-Learning-based anit-virus Scanners".
+
+## Usage Guide
+
+This project is designed to run models through different deep learning inference engines (such as MNN, NCNN, ONNX Runtime, TNN) and classify images based on the model's output.
+
+### 1. Prerequisites
+
+Before running the project, please ensure you have met the following conditions:
+
+*   **Compile C++ Code**: The C++ source code in the project needs to be compiled. Please use the provided `CMakeLists.txt` file for compilation.
+    ```bash
+    mkdir build
+    cd build
+    cmake ..
+    make
+    ```
+*   **Prepare Executables**: Move all compiled executables (e.g., `emotion_ferplus_mnn`, `fsanet_headpose_onnxruntime`, etc.) to the `resources/execution_files/` directory.
+*   **Prepare Model Files**: Ensure all model files (`.onnx`, `.mnn`, `.param`, `.bin`, `.tnnproto`, `.tnnmodel`, etc.) are located in the `resources/models/` directory.
+*   **Prepare Images**: Place the image files to be analyzed and classified in the `resources/images/` directory.
+
+### 2. Install Dependencies
+
+The project depends on certain system libraries and Python packages. You can run the `install_dependencies.sh` script to install them automatically (currently supports Ubuntu 24.04).
+
+```bash
+bash scripts/install_dependencies.sh
+```
+After installation, remember to activate the Python virtual environment:
+```bash
+source scripts/.venv/bin/activate
+```
+
+### 3. Run the Image Processing Script
+
+Once all files and dependencies are ready, you can run the `process_images.sh` script to start processing.
+
+First, grant execute permissions to the script:
+```bash
+chmod +x scripts/process_images.sh
+```
+
+Then, run the script directly:
+```bash
+./scripts/process_images.sh
+```
+
+The script will automatically perform the following actions:
+1.  Iterate through all executables in the `resources/execution_files/` directory.
+2.  For each executable, create a corresponding subdirectory in the `results/` directory.
+3.  Within each subdirectory, create two folders: `true` and `false`.
+4.  Process each image in the `resources/images/` directory using the executable.
+5.  Based on the program's output (`true` or `false`), copy the original image into the corresponding `true` or `false` folder.
+
+### 4. View Results
+
+After processing is complete, you can find the classified images in the `results/` directory. The directory structure will look like this:
+
+```
+results/
+├── emotion_ferplus_mnn/
+│   ├── true/
+│   │   ├── image1.jpg
+│   │   └── ...
+│   └── false/
+│       ├── image2.jpg
+│       └── ...
+└── fsanet_headpose_onnxruntime/
+    ├── true/
+    │   └── ...
+    └── false/
+        └── ...
+```
 
 
 
 
-目前的示例代码
 
-测试结果，
-
-污点分析
-
-对其中loss function的设计做修改current_hooks和target_hooks传入时要附带上偏移地址的信息，目前类似于Target hooks captured: [-9.59821033, 11.9071264, 11.9071264, 15.8226147, 15.8226147, 7.97491789, 15.8226147, -10.4998245, 15.8226147, -15.2762852, 15.8226147, -19.3611851, 15.8226147, 21.8360138, 21.8360138, -5.58873224, -3.16794729, 21.8360138, 4.86246645e-05, 2.22437459e-14, 4.86246645e-05, 0.00243967259, 9.53060237e-07, 0.00243967259, 0.00243967259, 9.02903749e-15, 7.60767208e-17, 0.00243967259, 0.00243967259, 1.27997742e-18, 0.997510791, 0.00243967259, 1.2260324e-12, 0.997510791, 1.37986012e-11, 0.997510791, 0.997510791, 0.800000012]，要修改成{"0x.....":[-9.59821033, 11.9071264],"0x....":[11.9071264, 15.8226147]，当current_hooks和target_hooks有一些"0x....."字段缺失，则只考虑共同存在的"0x....."字段，然后对应做mse

@@ -318,20 +318,30 @@ def main(args):
         loss_log_file.write("iteration,loss\n")
         print(f"--- Loss values will be logged to: {loss_log_path} ---")
 
-        # Hyperparameter schedule state
-        is_tuning_phase = False
-        best_loss = float('inf')
-        patience_counter = 0
-        if args.enable_schedule:
-            print("--- Hyperparameter schedule enabled ---")
+        # Cosine Annealing with Warm Restarts parameters
+        if args.enable_warm_restarts:
+            print("--- Cosine Annealing with Warm Restarts enabled ---")
+            T_i = args.lr_restart_cycle_len
+            current_cycle = 0
+            iteration_in_cycle = 0
+            # Set a minimum learning rate, e.g., a small fraction of the initial LR.
+            eta_min = args.learning_rate / 100.0 
+            eta_max = args.learning_rate
+        else:
+            # Hyperparameter schedule state (old logic)
+            is_tuning_phase = False
+            best_loss = float('inf')
+            patience_counter = 0
+            if args.enable_schedule:
+                print("--- Hyperparameter schedule enabled ---")
 
-        # Stagnation-resetting decay state
-        stagnation_patience_counter = 0
-        iteration_of_last_decay = 0
-        total_decay_count = 0
-        best_loss_for_stagnation = float('inf')
-        if args.enable_stagnation_decay:
-            print("--- Stagnation-resetting decay enabled ---")
+            # Stagnation-resetting decay state (old logic)
+            stagnation_patience_counter = 0
+            iteration_of_last_decay = 0
+            total_decay_count = 0
+            best_loss_for_stagnation = float('inf')
+            if args.enable_stagnation_decay:
+                print("--- Stagnation-resetting decay enabled ---")
 
         print("--- Preparing environment: Verifying local paths ---")
         # No need to copy files, just verify they exist
@@ -379,22 +389,44 @@ def main(args):
         for i in range(args.iterations):
             print(f"--- Iteration {i+1}/{args.iterations} ---")
             
-            # Decay-and-Reset Logic
-            decay_reason = None
-            if args.enable_stagnation_decay:
-                if (i - iteration_of_last_decay) >= args.lr_decay_steps:
-                    decay_reason = f"SCHEDULED ({args.lr_decay_steps} steps passed)"
-                elif stagnation_patience_counter >= args.stagnation_patience:
-                    decay_reason = f"STAGNATION ({args.stagnation_patience} stagnant iterations)"
+            if args.enable_warm_restarts:
+                # Calculate LR with cosine annealing
+                current_lr = eta_min + 0.5 * (eta_max - eta_min) * (1 + np.cos(np.pi * iteration_in_cycle / T_i))
+                iteration_in_cycle += 1
+                
+                print(f"Cycle {current_cycle+1}/{args.lr_restart_cycles}, Iter {iteration_in_cycle}/{T_i}. LR: {current_lr:.6f}")
 
+                if iteration_in_cycle >= T_i:
+                    # End of a cycle, restart
+                    iteration_in_cycle = 0
+                    current_cycle += 1
+                    if current_cycle < args.lr_restart_cycles:
+                        T_i = int(T_i * args.lr_restart_cycle_mult)
+                        # Reset Adam's momentum. This is a key part of "warm" restarts to escape minima.
+                        m = np.zeros_like(attack_image, dtype=np.float32)
+                        v = np.zeros_like(attack_image, dtype=np.float32)
+                        print(f"--- WARM RESTART: Starting new cycle {current_cycle+1} with length {T_i}. Adam optimizer reset. ---")
+                    else:
+                        print("--- All restart cycles completed. Using min LR for remaining iterations. ---")
+                        # After all cycles, just use the min LR.
+                        eta_max = eta_min
+            else:
+                # Decay-and-Reset Logic (old logic)
+                decay_reason = None
+                if args.enable_stagnation_decay:
+                    if (i - iteration_of_last_decay) >= args.lr_decay_steps:
+                        decay_reason = f"SCHEDULED ({args.lr_decay_steps} steps passed)"
+                    elif stagnation_patience_counter >= args.stagnation_patience:
+                        decay_reason = f"STAGNATION ({args.stagnation_patience} stagnant iterations)"
+
+                    if decay_reason:
+                        total_decay_count += 1
+                        iteration_of_last_decay = i
+                        stagnation_patience_counter = 0
+
+                current_lr = args.learning_rate * (args.lr_decay_rate ** total_decay_count)
                 if decay_reason:
-                    total_decay_count += 1
-                    iteration_of_last_decay = i
-                    stagnation_patience_counter = 0
-
-            current_lr = args.learning_rate * (args.lr_decay_rate ** total_decay_count)
-            if decay_reason:
-                 print(f"DECAY TRIGGERED by {decay_reason}. New LR: {current_lr:.6f}")
+                     print(f"DECAY TRIGGERED by {decay_reason}. New LR: {current_lr:.6f}")
 
             # Use the new, host-based gradient estimator
             grad = estimate_gradient_nes(attack_image, args, target_hooks, workdir)
@@ -436,27 +468,28 @@ def main(args):
                 best_image_path = os.path.join(args.output_dir, "best_attack_image_nes_host.png")
                 cv2.imwrite(best_image_path, attack_image.astype(np.uint8))
 
-            # Update Stagnation Counter
-            if args.enable_stagnation_decay:
-                if decay_reason: best_loss_for_stagnation = loss
-                if loss < best_loss_for_stagnation - args.min_loss_delta:
-                    best_loss_for_stagnation = loss
-                    stagnation_patience_counter = 0
-                else: stagnation_patience_counter += 1
-                print(f"Stagnation patience: {stagnation_patience_counter}/{args.stagnation_patience}")
+            if not args.enable_warm_restarts:
+                # Update Stagnation Counter
+                if args.enable_stagnation_decay:
+                    if decay_reason: best_loss_for_stagnation = loss
+                    if loss < best_loss_for_stagnation - args.min_loss_delta:
+                        best_loss_for_stagnation = loss
+                        stagnation_patience_counter = 0
+                    else: stagnation_patience_counter += 1
+                    print(f"Stagnation patience: {stagnation_patience_counter}/{args.stagnation_patience}")
 
-            # Hyperparameter Schedule Logic
-            if args.enable_schedule and not is_tuning_phase:
-                if loss < best_loss - args.min_loss_delta:
-                    best_loss = loss
-                    patience_counter = 0
-                else:
-                    patience_counter += 1
-                if patience_counter >= args.tuning_patience:
-                    is_tuning_phase = True
-                    args.sigma = args.tune_sigma
-                    args.population_size = args.tune_population_size
-                    print("\nSWITCHING TO FINE-TUNING PHASE\n")
+                # Hyperparameter Schedule Logic
+                if args.enable_schedule and not is_tuning_phase:
+                    if loss < best_loss - args.min_loss_delta:
+                        best_loss = loss
+                        patience_counter = 0
+                    else:
+                        patience_counter += 1
+                    if patience_counter >= args.tuning_patience:
+                        is_tuning_phase = True
+                        args.sigma = args.tune_sigma
+                        args.population_size = args.tune_population_size
+                        print("\nSWITCHING TO FINE-TUNING PHASE\n")
 
             if is_successful:
                 print("\nAttack successful!")
@@ -506,10 +539,16 @@ if __name__ == "__main__":
     schedule_group.add_argument("--tune-population-size", type=int, default=20, help="Population size for the fine-tuning phase.")
     schedule_group.add_argument("--tuning-patience", type=int, default=5, help="Iterations with no improvement before switching to tuning phase.")
     schedule_group.add_argument("--min-loss-delta", type=float, default=1e-4, help="Minimum change in loss to be considered an improvement.")
-    # Stagnation-Resetting Decay Scheduling
+    # Stagnation-Resetting Decay
     stagnation_group = parser.add_argument_group("Stagnation-Resetting Decay")
     stagnation_group.add_argument("--enable-stagnation-decay", action="store_true", help="Enable decay-and-reset when loss stagnates.")
     stagnation_group.add_argument("--stagnation-patience", type=int, default=30, help="Iterations before forcing a decay.")
+    # Cosine Annealing with Warm Restarts
+    warm_restart_group = parser.add_argument_group("Cosine Annealing with Warm Restarts")
+    warm_restart_group.add_argument("--enable-warm-restarts", action="store_true", help="Enable Cosine Annealing with Warm Restarts.")
+    warm_restart_group.add_argument("--lr-restart-cycles", type=int, default=5, help="Number of warm restart cycles.")
+    warm_restart_group.add_argument("--lr-restart-cycle-len", type=int, default=50, help="Length of the first cycle in iterations.")
+    warm_restart_group.add_argument("--lr-restart-cycle-mult", type=int, default=2, help="Factor to multiply cycle length by after each restart.")
     # System
     parser.add_argument("--workers", type=int, default=os.cpu_count(), help="Number of parallel processes for evaluation.")
     parser.add_argument("--output-dir", type=str, default="attack_outputs_nes_host", help="Directory to save output images and logs.")

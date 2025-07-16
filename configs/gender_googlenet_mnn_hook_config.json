@@ -1,0 +1,26 @@
+[
+    {
+        "address": "0x1fe8", 
+        "instruction": "b.gt", 
+        "registers": [
+            "s1", 
+            "0x3f733333"
+        ]
+    }, 
+    {
+        "address": "0x2000", 
+        "instruction": "b.mi", 
+        "registers": [
+            "0x3d4ccccd", 
+            "s2"
+        ]
+    }, 
+    {
+        "address": "0x207c", 
+        "instruction": "b.ne", 
+        "registers": [
+            "UniquePcode[0x3e480]", 
+            "0x0"
+        ]
+    }
+]
