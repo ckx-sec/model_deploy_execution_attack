@@ -1,152 +1,152 @@
 # Model Deploy Execution Attack Lab
 
-本项目是一个面向**AI模型二进制部署安全**的自动化对抗攻击实验平台，支持多种主流推理引擎（MNN、NCNN、ONNXRuntime等）和多种攻击算法。核心特性包括：
-- 支持**灰盒（状态匹配）**与**黑盒（决策型）**攻击
-- 通过GDB hook自动提取模型内部状态，无需源码
-- 自动适配图片通道数/尺寸，兼容彩色与灰度模型
-- 支持多进程并行、内存优化、详细日志输出
+This project is an automated adversarial attack experimentation platform targeting the security of **binary-level AI model deployments**. It supports multiple mainstream inference engines (e-g-, MNN, NCNN, ONNXRuntime) and various attack algorithms-
 
-## 支持的攻击算法
-- **CMA-ES**：灰盒（状态匹配），适合低/中维度输入，通过GDB hook获取模型内部状态进行优化
-- **NES**：灰盒（状态匹配），适合高维输入，内存消耗低，通过GDB hook获取模型内部状态进行梯度估计
-- **Boundary Attack**、**HopSkipJump**、**Sign-OPT**：黑盒（决策型），适合只关心最终决策的场景，仅使用模型的输出结果（true/false）
+## Core Features
 
-## 典型用法（以ssrnet_age_mnn为例）
+- **Gray-box (State-matching) & Black-box (Decision-based) Attacks**: Supports both gray-box attacks, which leverage internal model states, and black-box attacks that only rely on final model outputs-
+- **Source-Free State Extraction**: Automatically extracts internal model states via GDB hooks, eliminating the need for source code-
+- **Automated Input Adaptation**: Automatically adapts image channel counts and dimensions to match model requirements, compatible with both color and grayscale inputs-
+- **Optimized for Performance**: Features multi-process parallelization, memory optimization, and detailed logging for efficient and transparent execution-
 
-### NES攻击（灰盒，状态匹配）
+## Supported Attack Algorithms
+
+- **CMA-ES**: A gray-box (state-matching) algorithm ideal for low- to medium-dimensional inputs- It uses internal model states obtained via GDB hooks to guide its optimization process-
+- **NES (Natural Evolution Strategies)**: A gray-box (state-matching) algorithm suitable for high-dimensional inputs- It has low memory consumption and estimates gradients using internal states from GDB hooks-
+- **Boundary Attack, HopSkipJump, Sign-OPT**: Black-box (decision-based) algorithms that are effective when only the final decision (true/false) of the model is of interest-
+
+## Setup Guide
+
+### 1- Prerequisites
+
+- **Compile C++ Code**: Compile the C++ source code using the provided `CMakeLists-txt` file-
+  ```bash
+  mkdir build
+  cd build
+  cmake --
+  make
+  ```
+- **Organize Assets**:
+  - Move compiled executables (e-g-, `emotion_ferplus_mnn`) to `resources/execution_files/`-
+  - Place model files (`-onnx`, `-mnn`, etc-) in `resources/models/`-
+  - Store images for analysis in `resources/images/`-
+
+### 2- Install Dependencies
+
+Install system libraries and Python packages using the provided script (tested on Ubuntu 24-04)-
 ```bash
-python3 src/attackers/nes_attack.py \
+bash scripts/install_dependencies-sh
+```
+Activate the Python virtual environment:
+```bash
+source scripts/-venv/bin/activate
+```
+
+## Usage Examples
+
+Here are typical command-line examples for running attacks on the `ssrnet_age_mnn` model-
+
+### NES Attack (Gray-box, State-matching)
+```bash
+python3 src/attackers/nes_attack-py \
     --executable assets/bin/ssrnet_age_mnn \
-    --image assets/test_lite_age_googlenet_old2.jpg \
-    --hooks configs/hook_ssrnet.json \
-    --model assets/ssrnet.mnn \
-    --golden-image assets/test_lite_age_googlenet.jpg \
+    --image assets/test_lite_age_googlenet_old2-jpg \
+    --hooks configs/hook_ssrnet-json \
+    --model assets/ssrnet-mnn \
+    --golden-image assets/test_lite_age_googlenet-jpg \
     --output-dir outputs/nes_attack_1 \
     --iterations 10000 \
-    --learning-rate 10.0 \
-    --lr-decay-rate 0.95 \
+    --learning-rate 10-0 \
+    --lr-decay-rate 0-95 \
     --lr-decay-steps 20 \
     --population-size 100 \
-    --sigma 0.2 \
+    --sigma 0-2 \
     --workers 14 \
     --enable-stagnation-decay \
     --stagnation-patience 10
 ```
 
-### CMA-ES攻击（灰盒，状态匹配）
+### CMA-ES Attack (Gray-box, State-matching)
 ```bash
-python3 src/attackers/cmaes_attack.py \
+python3 src/attackers/cmaes_attack-py \
     --executable assets/bin/ssrnet_age_mnn \
-    --model assets/ssrnet.mnn \
-    --hooks configs/hook_ssrnet.json \
-    --golden-image assets/test_lite_age_googlenet.jpg \
-    --image assets/test_lite_age_googlenet_old2.jpg \
+    --model assets/ssrnet-mnn \
+    --hooks configs/hook_ssrnet-json \
+    --golden-image assets/test_lite_age_googlenet-jpg \
+    --image assets/test_lite_age_googlenet_old2-jpg \
     --output-dir outputs/cmaes_attack_1 \
     --iterations 100 \
     --population-size 100 \
-    --sigma 5.0 \
-    --l-inf-norm 16.0
+    --sigma 5-0 \
+    --l-inf-norm 16-0
 ```
 
-> 其他攻击算法用法类似，详见各脚本`-h`帮助。
+> For other attack algorithms, please refer to the help message of each script via the `-h` flag-
 
-## 输入图片和模型要求
+## Model & Input Requirements
 
-| 模型                 | 输入尺寸  | 通道数 | 数据类型 |
-| :------------------- | :-------- | :----- | :------- |
-| ssrnet_age_mnn       | 64 x 64   | 3      | float32  |
-| emotion_ferplus_mnn  | 64 x 64   | 1      | float32  |
-| gender_googlenet_mnn | 224 x 224 | 3      | float32  |
-| example_mnn          | 224 x 224 | 3      | float32  |
-| ultraface_detector   | 320 x 240 | 3      | float32  |
-| yolov5_detector      | 640 x 640 | 3      | float32  |
+| Model                  | Input Dimensions | Channels | Data Type |
+| :--------------------- | :--------------- | :------- | :-------- |
+| `ssrnet_age_mnn`       | 64x64            | 3        | float32   |
+| `emotion_ferplus_mnn`  | 64x64            | 1        | float32   |
+| `gender_googlenet_mnn` | 224x224          | 3        | float32   |
+| `example_mnn`          | 224x224          | 3        | float32   |
+| `ultraface_detector`   | 320x240          | 3        | float32   |
+| `yolov5_detector`      | 640x640          | 3        | float32   |
 
-- 脚本会自动检测图片通道数/尺寸并适配到模型要求。
-- 建议输入图片与golden-image尺寸、通道一致。
+- The scripts will automatically detect and adapt the input image's dimensions and channel count to match the model's requirements-
+- It is recommended that the input image and the golden image have the same dimensions and channel count-
 
-## 常见问题与建议
-- **内存溢出**：CMA-ES在高分辨率下会极度吃内存，建议先将图片resize到较小尺寸（如64x64、128x128）。
-- **图片格式**：务必保证图片为常见格式（jpg/png），且能被OpenCV正常读取。
-- **hook配置**：`hook_xxx.json`必须与当前可执行文件版本匹配，否则GDB无法命中断点。
-- **GDB权限**：如遇GDB无法attach，需检查`/proc/sys/kernel/yama/ptrace_scope`设置。
-- **决策型攻击**：需提供一张原始图片（判定为false）和一张对抗起点图片（判定为true），尺寸必须一致。
+## Frequently Asked Questions (FAQ)
 
-## 贡献与联系方式
-- 欢迎提交issue、PR或邮件交流。
-- 联系方式：请见项目主页或相关文档。
+- **Memory Overflow**: CMA-ES can be memory-intensive with high-resolution images- It is advisable to resize images to smaller dimensions (e-g-, 64x64, 128x128) first-
+- **Image Format**: Ensure images are in a common format (JPEG/PNG) and can be read by OpenCV-
+- **Hook Configuration**: The `hook_---json` file must match the version of the executable to ensure GDB can hit breakpoints correctly-
+- **GDB Permissions**: If GDB fails to attach, check the `/proc/sys/kernel/yama/ptrace_scope` setting-
+- **Decision-based Attacks**: These attacks require an original image (classified as `false`) and a starting adversarial image (classified as `true`), both of which must have identical dimensions-
 
-This is the repository for our paper "Evading Deep-Learning-based anit-virus Scanners".
+## Contributing
 
-## Usage Guide
+We welcome contributions! Please submit an issue or pull request, or contact us via email-
 
-This project is designed to run models through different deep learning inference engines (such as MNN, NCNN, ONNX Runtime, TNN) and classify images based on the model's output.
+## Original Image Classification Script
 
-### 1. Prerequisites
+The project also includes a utility to classify images using the deployed models- After setup, you can use `scripts/process_images-sh` to sort images based on model predictions-
 
-Before running the project, please ensure you have met the following conditions:
+### Running the Classification Script
 
-*   **Compile C++ Code**: The C++ source code in the project needs to be compiled. Please use the provided `CMakeLists.txt` file for compilation.
-    ```bash
-    mkdir build
-    cd build
-    cmake ..
-    make
-    ```
-*   **Prepare Executables**: Move all compiled executables (e.g., `emotion_ferplus_mnn`, `fsanet_headpose_onnxruntime`, etc.) to the `resources/execution_files/` directory.
-*   **Prepare Model Files**: Ensure all model files (`.onnx`, `.mnn`, `.param`, `.bin`, `.tnnproto`, `.tnnmodel`, etc.) are located in the `resources/models/` directory.
-*   **Prepare Images**: Place the image files to be analyzed and classified in the `resources/images/` directory.
-
-### 2. Install Dependencies
-
-The project depends on certain system libraries and Python packages. You can run the `install_dependencies.sh` script to install them automatically (currently supports Ubuntu 24.04).
-
+First, grant execute permissions:
 ```bash
-bash scripts/install_dependencies.sh
+chmod +x scripts/process_images-sh
 ```
-After installation, remember to activate the Python virtual environment:
+Then, run the script:
 ```bash
-source scripts/.venv/bin/activate
+--/scripts/process_images-sh
 ```
 
-### 3. Run the Image Processing Script
+The script will:
+1- Iterate through all executables in `resources/execution_files/`-
+2- Create a corresponding subdirectory in the `results/` directory for each executable-
+3- Create `true` and `false` subfolders within each subdirectory-
+4- Process each image in `resources/images/` and copy it to the `true` or `false` folder based on the executable's output-
 
-Once all files and dependencies are ready, you can run the `process_images.sh` script to start processing.
+### Viewing Classification Results
 
-First, grant execute permissions to the script:
-```bash
-chmod +x scripts/process_images.sh
-```
-
-Then, run the script directly:
-```bash
-./scripts/process_images.sh
-```
-
-The script will automatically perform the following actions:
-1.  Iterate through all executables in the `resources/execution_files/` directory.
-2.  For each executable, create a corresponding subdirectory in the `results/` directory.
-3.  Within each subdirectory, create two folders: `true` and `false`.
-4.  Process each image in the `resources/images/` directory using the executable.
-5.  Based on the program's output (`true` or `false`), copy the original image into the corresponding `true` or `false` folder.
-
-### 4. View Results
-
-After processing is complete, you can find the classified images in the `results/` directory. The directory structure will look like this:
-
+The classified images will be organized in the `results/` directory as follows:
 ```
 results/
 ├── emotion_ferplus_mnn/
 │   ├── true/
-│   │   ├── image1.jpg
-│   │   └── ...
+│   │   ├── image1-jpg
+│   │   └── --
 │   └── false/
-│       ├── image2.jpg
-│       └── ...
+│       ├── image2-jpg
+│       └── --
 └── fsanet_headpose_onnxruntime/
     ├── true/
-    │   └── ...
+    │   └── --
     └── false/
-        └── ...
+        └── --
 ```
 
 
