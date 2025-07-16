@@ -10,6 +10,7 @@ import json
 import shutil
 import tempfile
 import time # Import time for convergence check
+from collections import deque
 from concurrent.futures import ProcessPoolExecutor
 
 # --- Core Host Execution Logic (Largely Unchanged from other attackers) ---
@@ -140,18 +141,53 @@ def main(args):
         
         query_count = 2 # We've already made two queries
 
+        # --- Initialize variables for adaptive step sizes ---
+        source_step = args.source_step
+        spherical_step = args.spherical_step
+        if args.dynamic_steps:
+            print("--- Adaptive step size enabled ---")
+            source_step_success_history = deque(maxlen=args.adaptation_window)
+        # ---
+
         # MODIFICATION: Use ProcessPoolExecutor for parallel execution
         with ProcessPoolExecutor(max_workers=args.workers) as executor:
             for i in range(args.iterations):
-                print(f"--- Iteration {i+1}/{args.iterations} (Total Queries: {query_count}) ---")
+                if args.dynamic_steps:
+                    print(f"--- Iteration {i+1}/{args.iterations} (Queries: {query_count}) [src_step={source_step:.1e}, sph_step={spherical_step:.1e}] ---")
+                else:
+                    print(f"--- Iteration {i+1}/{args.iterations} (Total Queries: {query_count}) ---")
+
 
                 # 1. Try to move closer to the original image (Source Step)
-                trial_image = (1 - args.source_step) * adversarial_image + args.source_step * original_image
+                trial_image = (1 - source_step) * adversarial_image + source_step * original_image
                 
                 _, encoded_trial = cv2.imencode(".png", np.clip(trial_image, 0, 255).astype(np.uint8))
                 is_successful = check_image_is_adversarial(encoded_trial.tobytes(), args, workdir, "temp_trial_source.png")
                 query_count += 1
                 
+                # --- Adaptive Step Logic ---
+                if args.dynamic_steps:
+                    source_step_success_history.append(is_successful)
+                    # Only adapt if we have enough history
+                    if len(source_step_success_history) == args.adaptation_window:
+                        current_success_rate = np.mean(source_step_success_history)
+                        
+                        if current_success_rate > args.target_success_rate:
+                            # Too conservative, get more aggressive
+                            source_step *= args.step_adaptation_factor
+                            spherical_step /= args.step_adaptation_factor
+                            print(f"Adaptive Steps: Success rate {current_success_rate:.2f} > target. Increasing source step, decreasing spherical.")
+                        else:
+                            # Too aggressive, get more conservative
+                            source_step /= args.step_adaptation_factor
+                            spherical_step *= args.step_adaptation_factor
+                            print(f"Adaptive Steps: Success rate {current_success_rate:.2f} <= target. Decreasing source step, increasing spherical.")
+                        
+                        # Clamp steps to prevent them from becoming too large or small
+                        source_step = np.clip(source_step, 1e-6, 0.5)
+                        spherical_step = np.clip(spherical_step, 1e-6, 0.5)
+                # ---
+
                 if is_successful:
                     adversarial_image = trial_image
                     print(f"Source step successful. Moved closer to original.")
@@ -173,8 +209,8 @@ def main(args):
                         # Project perturbation to be orthogonal
                         perturbation -= np.dot(perturbation.flatten(), direction_to_original.flatten()) / (dist_to_original**2 + 1e-9) * direction_to_original
                         
-                        # Rescale
-                        perturbation *= args.spherical_step * dist_to_original / (np.linalg.norm(perturbation) + 1e-9)
+                        # Rescale using the current (possibly adapted) spherical_step
+                        perturbation *= spherical_step * dist_to_original / (np.linalg.norm(perturbation) + 1e-9)
 
                         trial_image = adversarial_image + perturbation
                         trial_images_for_workers.append(trial_image)
@@ -260,8 +296,16 @@ if __name__ == "__main__":
     parser.add_argument("--start-adversarial", required=True, help="Local path to an image that is already adversarial ('true').")
     # Attack Hyperparameters
     parser.add_argument("--iterations", type=int, default=10000, help="Maximum number of attack iterations.")
-    parser.add_argument("--source-step", type=float, default=0.01, help="Step size for moving towards the source image.")
-    parser.add_argument("--spherical-step", type=float, default=0.01, help="Step size for spherical boundary exploration.")
+    parser.add_argument("--source-step", type=float, default=0.01, help="Initial step size for moving towards the source image.")
+    parser.add_argument("--spherical-step", type=float, default=0.01, help="Initial step size for spherical boundary exploration.")
+    
+    # Adaptive Step Size Parameters
+    parser.add_argument("--dynamic-steps", action='store_true', help="Enable adaptive adjustment of source and spherical steps.")
+    parser.add_argument("--step-adaptation-factor", type=float, default=1.5, help="Factor for adapting step sizes (e.g., 1.5 -> 50%% change). Used if --dynamic-steps is enabled.")
+    parser.add_argument("--target-success-rate", type=float, default=0.25, help="The target success rate for the source step. Used if --dynamic-steps is enabled.")
+    parser.add_argument("--adaptation-window", type=int, default=30, help="Window size over which to calculate the success rate. Used if --dynamic-steps is enabled.")
+
+    # Convergence Parameters
     parser.add_argument("--patience", type=int, default=50, help="Number of iterations to wait for improvement before stopping early.")
     parser.add_argument("--convergence-threshold", type=float, default=1e-4, help="The minimum L2 distance improvement to reset the patience counter.")
     # System
