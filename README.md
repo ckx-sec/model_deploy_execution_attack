@@ -1,19 +1,19 @@
 # Model Deploy Execution Attack Lab
 
 本项目是一个面向**AI模型二进制部署安全**的自动化对抗攻击实验平台，支持多种主流推理引擎（MNN、NCNN、ONNXRuntime等）和多种攻击算法。核心特性包括：
-- 支持**白盒（状态匹配）**与**灰盒（决策型）**攻击
+- 支持**灰盒（状态匹配）**与**黑盒（决策型）**攻击
 - 通过GDB hook自动提取模型内部状态，无需源码
 - 自动适配图片通道数/尺寸，兼容彩色与灰度模型
 - 支持多进程并行、内存优化、详细日志输出
 
 ## 支持的攻击算法
-- **CMA-ES**：白盒，适合低/中维度输入，能高效拟合目标内部状态
-- **NES**：白盒，适合高维输入，内存消耗低，梯度估计高效
-- **Boundary Attack**、**HopSkipJump**、**Sign-OPT**：灰盒，适合只关心最终决策的场景
+- **CMA-ES**：灰盒（状态匹配），适合低/中维度输入，通过GDB hook获取模型内部状态进行优化
+- **NES**：灰盒（状态匹配），适合高维输入，内存消耗低，通过GDB hook获取模型内部状态进行梯度估计
+- **Boundary Attack**、**HopSkipJump**、**Sign-OPT**：黑盒（决策型），适合只关心最终决策的场景，仅使用模型的输出结果（true/false）
 
 ## 典型用法（以ssrnet_age_mnn为例）
 
-### NES攻击（白盒，状态匹配）
+### NES攻击（灰盒，状态匹配）
 ```bash
 python3 src/attackers/nes_attack.py \
     --executable assets/bin/ssrnet_age_mnn \
@@ -33,7 +33,7 @@ python3 src/attackers/nes_attack.py \
     --stagnation-patience 10
 ```
 
-### CMA-ES攻击（白盒，状态匹配）
+### CMA-ES攻击（灰盒，状态匹配）
 ```bash
 python3 src/attackers/cmaes_attack.py \
     --executable assets/bin/ssrnet_age_mnn \
