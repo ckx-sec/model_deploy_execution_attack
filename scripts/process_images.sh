@@ -15,7 +15,7 @@ export LD_LIBRARY_PATH=$BASE_DIR/third_party/mnn/lib:$BASE_DIR/third_party/ncnn/
 
 # Define directories
 EXEC_DIR="$BASE_DIR/resources/execution_files"
-DEFAULT_IMAGE_DIR="$BASE_DIR/resources/images"
+DEFAULT_IMAGE_DIR="$BASE_DIR/resources/images/img_align_celeba"
 MODEL_DIR="$BASE_DIR/resources/models" # Corrected model directory path
 RESULT_DIR="$BASE_DIR/results"
 
@@ -72,7 +72,7 @@ for exec_path in "$EXEC_DIR"/*; do
   # Select image directory based on model
   IMAGE_DIR="$DEFAULT_IMAGE_DIR"
   if [ "$exec_base_name" == "mnist" ]; then
-    IMAGE_DIR="$BASE_DIR/mnist_sample_10x10"
+    IMAGE_DIR="$BASE_DIR/resources/images/mnist_sample"
     if [ ! -d "$IMAGE_DIR" ]; then
       echo "Error: MNIST image directory not found at $IMAGE_DIR"
       continue
