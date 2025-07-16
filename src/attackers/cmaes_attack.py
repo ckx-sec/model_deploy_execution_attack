@@ -193,7 +193,7 @@ def calculate_loss(current_hooks, target_hooks, margin=0.0, weights=None):
 
 def main(args):
     loss_log_file = None
-    best_attack_image = None
+    best_attack_image_low_res = None
     best_loss_so_far = float('inf')
 
     # Define a smaller, maximum resolution for the attack to avoid memory issues with CMA-ES
@@ -288,6 +288,9 @@ def main(args):
         iteration = 0
         original_image_flat = original_image.astype(np.float32).flatten()
 
+        # Keep a full-resolution copy for the final step
+        original_image_full_res_float = original_image_full_res.astype(np.float32)
+
         while not es.stop():
             iteration += 1
             print(f"--- Iteration {iteration}/{args.iterations} (Eval: {es.countevals}) ---")
@@ -328,33 +331,60 @@ def main(args):
             # --- MODIFICATION: Create and save the LOW-RESOLUTION attack image ---
             # This is the image that was actually evaluated and is known to be effective.
             # The perturbation is clipped to the L-inf norm constraint for correctness.
-            best_perturbation = np.clip(current_best_solution, -l_inf, l_inf).reshape(h, w, c)
-            final_attack_image = np.clip(original_image.astype(np.float32) + best_perturbation, 0, 255).astype(np.uint8)
+            best_perturbation_low_res = np.clip(current_best_solution, -l_inf, l_inf).reshape(h, w, c)
+            final_attack_image_low_res = np.clip(original_image.astype(np.float32) + best_perturbation_low_res, 0, 255).astype(np.uint8)
 
             print(f"Best loss this generation: {np.min(losses):.6f}. Overall best loss: {current_best_loss:.6f}")
             loss_log_file.write(f"{iteration},{np.min(losses):.6f},{current_best_loss:.6f}\n")
             loss_log_file.flush()
 
             # Save latest and best images (now in low resolution, which is the validated result)
-            latest_image_path = os.path.join(args.output_dir, "latest_attack_image_cmaes_host.png")
-            cv2.imwrite(latest_image_path, final_attack_image)
+            latest_image_path = os.path.join(args.output_dir, "latest_attack_image_cmaes_host_lowres.png")
+            cv2.imwrite(latest_image_path, final_attack_image_low_res)
 
             if current_best_loss < best_loss_so_far:
                 best_loss_so_far = current_best_loss
-                print(f"New best loss found: {best_loss_so_far:.6f}. Saving best image.")
-                best_image_path = os.path.join(args.output_dir, "best_attack_image_cmaes_host.png")
-                cv2.imwrite(best_image_path, final_attack_image)
+                best_attack_image_low_res = final_attack_image_low_res # Keep track of the best raw image
+                print(f"New best loss found: {best_loss_so_far:.6f}. Saving best low-res image.")
+                best_image_path = os.path.join(args.output_dir, "best_attack_image_cmaes_host_lowres.png")
+                cv2.imwrite(best_image_path, best_attack_image_low_res)
             
             # Check for success condition on the downscaled image
-            best_attack_image = final_attack_image # Keep track of the best raw image
-            _, encoded_image = cv2.imencode(".png", best_attack_image)
+            _, encoded_image = cv2.imencode(".png", best_attack_image_low_res)
             is_successful, _ = run_attack_iteration_for_verification(encoded_image.tobytes(), args, workdir, "temp_verify.png")
 
             if is_successful:
-                print("\nAttack successful!")
-                successful_image_path = os.path.join(args.output_dir, "successful_attack_image_cmaes_host.png")
-                cv2.imwrite(successful_image_path, best_attack_image)
-                print(f"Adversarial image saved to: {successful_image_path}")
+                print("\n--- Low-resolution attack successful! ---")
+                print("--- Now attempting to upscale perturbation to full resolution... ---")
+
+                # Upscale the perturbation
+                h_full, w_full, _ = original_image_full_res.shape
+                best_perturbation_high_res = cv2.resize(best_perturbation_low_res, (w_full, h_full), interpolation=cv2.INTER_CUBIC)
+
+                # Apply to full-res original image
+                final_attack_image_high_res = np.clip(original_image_full_res_float + best_perturbation_high_res, 0, 255).astype(np.uint8)
+
+                # Final verification
+                _, encoded_high_res = cv2.imencode(".png", final_attack_image_high_res)
+                is_high_res_successful, _ = run_attack_iteration_for_verification(encoded_high_res.tobytes(), args, workdir, "temp_verify_highres.png")
+                
+                if is_high_res_successful:
+                    print("\n--- SUCCESS! Upscaled attack image is verified to be adversarial. ---")
+                    successful_image_path = os.path.join(args.output_dir, "successful_attack_image_cmaes_host_FULL_RES.png")
+                    cv2.imwrite(successful_image_path, final_attack_image_high_res)
+                    print(f"Full-resolution adversarial image saved to: {successful_image_path}")
+                else:
+                    print("\n--- WARNING: Upscaled attack image is NOT adversarial. ---")
+                    print("The perturbation did not transfer to the higher resolution.")
+                    failed_image_path = os.path.join(args.output_dir, "failed_upscaled_attack_image_cmaes_host.png")
+                    cv2.imwrite(failed_image_path, final_attack_image_high_res)
+                    print(f"The failed upscaled image has been saved for analysis: {failed_image_path}")
+
+                # Save the successful low-res version anyway for comparison
+                successful_lowres_path = os.path.join(args.output_dir, "successful_attack_image_cmaes_host_LOW_RES.png")
+                cv2.imwrite(successful_lowres_path, best_attack_image_low_res)
+                print(f"The successful low-resolution base image saved to: {successful_lowres_path}")
+
                 break
 
         print("\n--- CMA-ES optimization finished ---")
@@ -363,10 +393,10 @@ def main(args):
     except (FileNotFoundError, RuntimeError, KeyboardInterrupt) as e:
         print(f"\nAn error or interrupt occurred: {e}")
         # Also save the low-res image on interrupt
-        if best_attack_image is not None:
-            print("Saving the last best image...")
-            interrupted_image_path = os.path.join(args.output_dir, "interrupted_attack_image_cmaes_host.png")
-            cv2.imwrite(interrupted_image_path, best_attack_image)
+        if best_attack_image_low_res is not None:
+            print("Saving the last best low-resolution image...")
+            interrupted_image_path = os.path.join(args.output_dir, "interrupted_attack_image_cmaes_host_lowres.png")
+            cv2.imwrite(interrupted_image_path, best_attack_image_low_res)
             print(f"Last best image saved to: {interrupted_image_path}")
     finally:
         if loss_log_file:

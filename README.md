@@ -55,11 +55,11 @@ python3 src/attackers/nes_attack.py \
     --model assets/ssrnet.mnn \
     --golden-image assets/test_lite_age_googlenet.jpg \
     --output-dir outputs/nes_attack_1 \
-    --iterations 10000 \
-    --learning-rate 10.0 \
-    --lr-decay-rate 0.95 \
-    --lr-decay-steps 20 \
-    --population-size 100 \
+    --iterations 200 \
+    --learning-rate 20.0 \
+    --lr-decay-rate 0.8 \
+    --lr-decay-steps 40 \
+    --population-size 200 \
     --sigma 0.2 \
     --workers 14 \
     --enable-stagnation-decay \

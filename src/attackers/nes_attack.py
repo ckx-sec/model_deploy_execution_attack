@@ -282,6 +282,7 @@ def main(args):
     loss_log_file = None
     attack_image = None
     best_loss_so_far = float('inf')
+    total_queries = 0
 
     # --- Graceful Termination on Ctrl+C ---
     # Set this process as a group leader. All subprocesses (workers) will be in this group.
@@ -363,6 +364,7 @@ def main(args):
             raise RuntimeError("Failed to encode golden image.")
 
         is_golden_ok, target_hooks = run_attack_iteration(encoded_golden.tobytes(), args, workdir, "temp_golden_image.png")
+        total_queries += 1
 
         if not target_hooks:
             raise RuntimeError("Golden run captured no hooks. Cannot proceed.")
@@ -387,7 +389,7 @@ def main(args):
         epsilon_adam = 1e-8
 
         for i in range(args.iterations):
-            print(f"--- Iteration {i+1}/{args.iterations} ---")
+            print(f"--- Iteration {i+1}/{args.iterations} (Total Queries: {total_queries}) ---")
             
             if args.enable_warm_restarts:
                 # Calculate LR with cosine annealing
@@ -430,6 +432,7 @@ def main(args):
 
             # Use the new, host-based gradient estimator
             grad = estimate_gradient_nes(attack_image, args, target_hooks, workdir)
+            total_queries += args.population_size
             
             # Adam Optimizer Update
             t = i + 1
@@ -452,6 +455,7 @@ def main(args):
             else:
                 # Use run_attack_iteration for the final check of the main attack image
                 is_successful, current_hooks = run_attack_iteration(encoded_image.tobytes(), args, workdir, "temp_attack_image.png")
+                total_queries += 1
                 loss = calculate_loss(current_hooks, target_hooks)
             
             print(f"Attack result: {'Success' if is_successful else 'Fail'}. Internal state loss: {loss:.6f}")
@@ -538,7 +542,7 @@ if __name__ == "__main__":
     schedule_group.add_argument("--tune-sigma", type=float, default=1.0, help="Sigma for the fine-tuning phase.")
     schedule_group.add_argument("--tune-population-size", type=int, default=20, help="Population size for the fine-tuning phase.")
     schedule_group.add_argument("--tuning-patience", type=int, default=5, help="Iterations with no improvement before switching to tuning phase.")
-    schedule_group.add_argument("--min-loss-delta", type=float, default=0.01, help="Minimum change in loss to be considered an improvement.")
+    schedule_group.add_argument("--min-loss-delta", type=float, default=0.1, help="Minimum change in loss to be considered an improvement.")
     # Stagnation-Resetting Decay
     stagnation_group = parser.add_argument_group("Stagnation-Resetting Decay")
     stagnation_group.add_argument("--enable-stagnation-decay", action="store_true", help="Enable decay-and-reset when loss stagnates.")

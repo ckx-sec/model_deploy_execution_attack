@@ -210,14 +210,19 @@ def main(args):
             if not os.path.exists(f):
                 raise FileNotFoundError(f"Required file not found: {f}")
 
-        print("--- Loading images in COLOR mode ---")
-        original_image = cv2.imread(args.image, cv2.IMREAD_COLOR).astype(np.float32)
-        adversarial_image = cv2.imread(args.start_adversarial, cv2.IMREAD_COLOR).astype(np.float32)
+        if args.grayscale:
+            print("--- Loading images in GRAYSCALE mode ---")
+            original_image = cv2.imread(args.image, cv2.IMREAD_GRAYSCALE).astype(np.float32)
+            adversarial_image = cv2.imread(args.start_adversarial, cv2.IMREAD_GRAYSCALE).astype(np.float32)
+        else:
+            print("--- Loading images in COLOR mode ---")
+            original_image = cv2.imread(args.image, cv2.IMREAD_COLOR).astype(np.float32)
+            adversarial_image = cv2.imread(args.start_adversarial, cv2.IMREAD_COLOR).astype(np.float32)
 
         # 自动处理尺寸不一致
         if original_image.shape != adversarial_image.shape:
-            print(f"[Auto Resize] start-adversarial image shape {adversarial_image.shape} != original image shape {original_image.shape}, resizing...")
-            adversarial_image = cv2.resize(adversarial_image, (original_image.shape[1], original_image.shape[0]))
+            print(f"[Auto Resize] Original image shape {original_image.shape} != start-adversarial image shape {adversarial_image.shape}, resizing original image to match...")
+            original_image = cv2.resize(original_image, (adversarial_image.shape[1], adversarial_image.shape[0]))
 
         print("--- Verifying initial image states ---")
         _, encoded_orig = cv2.imencode(".png", original_image.astype(np.uint8))
@@ -242,9 +247,37 @@ def main(args):
             grad = estimate_gradient_at_boundary(boundary_point, original_image, args, workdir, query_counter_ref)
 
             # 3. Skip Part 2: Take step with decay
-            current_step_factor = args.step_size * (args.step_size_decay ** i)
-            step_size = np.linalg.norm(original_image - boundary_point) * current_step_factor
-            candidate_image = boundary_point + step_size * grad
+            # Corrected HopSkipJump step logic (Second Attempt):
+            # The goal is to move from the boundary point towards the original image,
+            # but constrained to the tangent plane of the decision boundary.
+            # The gradient is normal to this plane.
+
+            move_direction = original_image - boundary_point
+            
+            # Normalize the gradient to get the unit normal vector of the boundary
+            grad_norm = np.linalg.norm(grad)
+            if grad_norm < 1e-9: # Avoid division by zero
+                unit_grad = grad
+            else:
+                unit_grad = grad / grad_norm
+
+            # Project the move_direction onto the gradient vector
+            proj_length = np.vdot(move_direction, unit_grad)
+            proj_vector = proj_length * unit_grad
+            
+            # The corrected direction is the component of move_direction that is orthogonal to the gradient
+            # This moves along the boundary towards the original image
+            corrected_direction = move_direction - proj_vector
+            
+            # Normalize the final direction
+            corrected_direction_norm = np.linalg.norm(corrected_direction)
+            if corrected_direction_norm > 1e-9:
+                 corrected_direction /= corrected_direction_norm
+
+            # Use a more stable step size
+            step_size = args.step_size * (args.step_size_decay ** i)
+            
+            candidate_image = boundary_point + step_size * corrected_direction
 
             # 4. Project to valid range
             candidate_image = np.clip(candidate_image, 0, 255)
@@ -301,9 +334,10 @@ if __name__ == "__main__":
     parser.add_argument("--binary-search-steps", type=int, default=10, help="Number of binary search steps to find the boundary.")
     parser.add_argument("--num-grad-queries", type=int, default=200, help="Number of samples to estimate gradient.")
     parser.add_argument("--grad-estimation-delta", type=float, default=0.1, help="Radius for gradient estimation probes.")
-    parser.add_argument("--step-size", type=float, default=0.01, help="Initial step size factor for moving away from the boundary.")
+    parser.add_argument("--step-size", type=float, default=1.0, help="Initial step size for moving away from the boundary. Note: This is now a fixed pixel value, not a factor.")
     parser.add_argument("--step-size-decay", type=float, default=0.99, help="Decay rate for the step size factor after each iteration.")
     # System
+    parser.add_argument("--grayscale", action="store_true", help="Load images in grayscale mode (for models like MNIST).")
     parser.add_argument("--workers", type=int, default=os.cpu_count(), help="Number of parallel processes for gradient estimation.")
     parser.add_argument("--output-dir", type=str, default="attack_outputs_hopskip_host", help="Directory to save output images and logs.")
     
