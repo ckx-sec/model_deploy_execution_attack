@@ -5,7 +5,7 @@ set -e
 
 echo "---- Ubuntu 24.04: Installing system dependencies ----"
 sudo apt-get update -y
-sudo apt-get install -y cmake gdb python3 python3-venv python3-pip libopencv-dev
+sudo apt-get install -y cmake gdb python3 python3-venv python3-pip libopencv-dev unzip
 
 echo "---- Creating Python virtual environment and installing Python packages ----"
 cd "$(dirname "$0")"

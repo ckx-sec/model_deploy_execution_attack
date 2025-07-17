@@ -200,7 +200,7 @@ def estimate_gradient_nes(image, args, target_hooks, workdir):
     This version is optimized to use batched file I/O on the host.
     """
     run_id = uuid.uuid4().hex[:12]  # A unique ID for this batch of evaluations
-    h, w, c = image.shape
+    image_shape = image.shape
     pop_size = args.population_size
     sigma = args.sigma
     
@@ -210,7 +210,8 @@ def estimate_gradient_nes(image, args, target_hooks, workdir):
     half_pop_size = pop_size // 2
     
     # 1. Generate noise and create all mutated images in memory
-    noise_vectors = [np.random.randn(h, w, c) for _ in range(half_pop_size)]
+    # Generate noise with the same shape as the input image (works for both grayscale and color)
+    noise_vectors = [np.random.randn(*image_shape) for _ in range(half_pop_size)]
     mutations_data_for_writing = []
     tasks = []
 
@@ -283,6 +284,7 @@ def main(args):
     detailed_log_file = None
     attack_image = None
     best_loss_so_far = float('inf')
+    best_image_path = None
     total_queries = 0
     start_time = time.time()
 
@@ -365,10 +367,33 @@ def main(args):
                 raise FileNotFoundError(f"Required file not found: {f}")
 
         print("--- Getting target state from golden image ---")
-        # Use run_attack_iteration for this single run
-        golden_image = cv2.imread(args.golden_image, cv2.IMREAD_COLOR)
+        
+        # Load images while preserving their original channels
+        golden_image = cv2.imread(args.golden_image, cv2.IMREAD_UNCHANGED)
         if golden_image is None:
-             raise FileNotFoundError(f"Could not read golden image: {args.golden_image}")
+            raise FileNotFoundError(f"Could not read golden image: {args.golden_image}")
+        
+        original_image = cv2.imread(args.image, cv2.IMREAD_UNCHANGED)
+        if original_image is None:
+            raise FileNotFoundError(f"Could not read original image: {args.image}")
+
+        # --- Determine processing mode (Grayscale or Color) ---
+        # An image is considered grayscale if it has 2 dimensions (height, width)
+        is_golden_gray = golden_image.ndim == 2
+        is_original_gray = original_image.ndim == 2
+
+        if is_golden_gray and is_original_gray:
+            print("--- Detected Grayscale Mode: Both images are single-channel. Processing in 1-channel mode. ---")
+            # Images are already single-channel, nothing to do.
+        else:
+            print("--- Detected Color Mode: At least one image is multi-channel. Processing in 3-channel mode. ---")
+            # If an image is grayscale, convert it to color to ensure both are 3-channel.
+            if is_golden_gray:
+                golden_image = cv2.cvtColor(golden_image, cv2.COLOR_GRAY2BGR)
+            if is_original_gray:
+                original_image = cv2.cvtColor(original_image, cv2.COLOR_GRAY2BGR)
+
+        # Use run_attack_iteration for this single run
         is_success_encoding, encoded_golden = cv2.imencode(".png", golden_image)
         if not is_success_encoding:
             raise RuntimeError("Failed to encode golden image.")
@@ -380,14 +405,19 @@ def main(args):
             raise RuntimeError("Golden run captured no hooks. Cannot proceed.")
         print(f"Target hooks captured: {target_hooks}")
 
-        original_image = cv2.imread(args.image, cv2.IMREAD_COLOR)
-        if original_image is None:
-            raise FileNotFoundError(f"Could not read original image: {args.image}")
-
-        # Ensure images have the same dimensions
-        if original_image.shape != golden_image.shape:
+        # Ensure images have the same dimensions; this might recreate original_image
+        if original_image.shape[:2] != golden_image.shape[:2]:
             print(f"Warning: Image shapes do not match. Original: {original_image.shape}, Golden: {golden_image.shape}. Resizing original to match golden.")
             original_image = cv2.resize(original_image, (golden_image.shape[1], golden_image.shape[0]))
+
+        # After resize, channels must also match. This handles the case where resizing a gray image to color dimensions doesn't add channels.
+        if original_image.ndim != golden_image.ndim:
+            print(f"Warning: Channel mismatch after resize. Re-converting original image to match golden image channels.")
+            if golden_image.ndim == 3 and original_image.ndim == 2:
+                original_image = cv2.cvtColor(original_image, cv2.COLOR_GRAY2BGR)
+            elif golden_image.ndim == 2 and original_image.ndim == 3: # Should not happen with current logic, but for safety
+                original_image = cv2.cvtColor(original_image, cv2.COLOR_BGR2GRAY)
+
 
         attack_image = original_image.copy().astype(np.float32)
 
@@ -415,10 +445,23 @@ def main(args):
                     current_cycle += 1
                     if current_cycle < args.lr_restart_cycles:
                         T_i = int(T_i * args.lr_restart_cycle_mult)
-                        # Reset Adam's momentum. This is a key part of "warm" restarts to escape minima.
+                        
+                        # --- "Restart from Best" Logic ---
+                        if best_image_path and os.path.exists(best_image_path):
+                            print(f"--- RESTART FROM BEST: Loading best image from {best_image_path}. ---")
+                            loaded_image = cv2.imread(best_image_path, cv2.IMREAD_UNCHANGED)
+                            if loaded_image is not None:
+                                attack_image = loaded_image.astype(np.float32)
+                            else:
+                                # This case is unlikely but good to handle
+                                print(f"Warning: Failed to load best image. Performing a standard warm restart on the current image instead.")
+                        else:
+                            print(f"--- WARM RESTART (no best image found yet): Resetting optimizer at current position. ---")
+
+                        # Reset Adam's momentum for the attack_image (either reloaded or current) to escape local minima.
                         m = np.zeros_like(attack_image, dtype=np.float32)
                         v = np.zeros_like(attack_image, dtype=np.float32)
-                        print(f"--- WARM RESTART: Starting new cycle {current_cycle+1} with length {T_i}. Adam optimizer reset. ---")
+                        print(f"--- Starting new cycle {current_cycle+1} with length {T_i}. Adam optimizer reset. ---")
                     else:
                         print("--- All restart cycles completed. Using min LR for remaining iterations. ---")
                         # After all cycles, just use the min LR.

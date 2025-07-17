@@ -48,22 +48,8 @@ Here are typical commandline examples for running attacks on the `ssrnet_age_mnn
 
 ### NES Attack (Gray-box, State-matching)
 ```bash
-python3 src/attackers/nes_attack.py \
-    --executable assets/bin/ssrnet_age_mnn \
-    --image assets/test_lite_age_googlenet_old2.jpg \
-    --hooks configs/hook_ssrnet.json \
-    --model assets/ssrnet.mnn \
-    --golden-image assets/test_lite_age_googlenet.jpg \
-    --output-dir outputs/nes_attack_1 \
-    --iterations 200 \
-    --learning-rate 20.0 \
-    --lr-decay-rate 0.8 \
-    --lr-decay-steps 40 \
-    --population-size 200 \
-    --sigma 0.2 \
-    --workers 14 \
-    --enable-stagnation-decay \
-    --stagnation-patience 10
+python3 src/attackers/nes_attack.py     --executable resources/execution_files/mnist_mnn     --model resources/models/mnist.mnn     --hooks hook_config/mnist_mnn_hook_config.json     --golden-image resources/images/mnist_sample/7/7_0.png     --image outputs/nes_attack_1/best_attack_image_nes_host.png     --output-dir outputs/nes_attack_1     --iterations 200     --learning-rate 20.0     --lr-decay-rate 0.97     --lr-decay-steps 70     --population-size 200     --sigma 0.2     --workers 32     --enable-stagnation-decay     --stagnation-patience 10
+
 ```
 
 ### CMA-ES Attack (Gray-box, State-matching)
