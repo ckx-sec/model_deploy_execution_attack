@@ -221,19 +221,39 @@ def main(args):
             if not os.path.exists(f):
                 raise FileNotFoundError(f"Required file not found: {f}")
 
-        if args.grayscale:
-            print("--- Loading images in GRAYSCALE mode ---")
-            original_image = cv2.imread(args.image, cv2.IMREAD_GRAYSCALE).astype(np.float32)
-            adversarial_image = cv2.imread(args.start_adversarial, cv2.IMREAD_GRAYSCALE).astype(np.float32)
+        print("--- Loading images ---")
+        original_image = cv2.imread(args.image, cv2.IMREAD_UNCHANGED).astype(np.float32)
+        adversarial_image = cv2.imread(args.start_adversarial, cv2.IMREAD_UNCHANGED).astype(np.float32)
+
+        if original_image is None: raise FileNotFoundError(f"Could not load original image from {args.image}")
+        if adversarial_image is None: raise FileNotFoundError(f"Could not load starting adversarial image from {args.start_adversarial}")
+
+        # --- Determine processing mode (Grayscale or Color) ---
+        is_orig_gray = original_image.ndim == 2
+        is_adv_gray = adversarial_image.ndim == 2
+
+        if is_orig_gray and is_adv_gray:
+            print("--- Detected Grayscale Mode: Processing in 1-channel mode. ---")
         else:
-            print("--- Loading images in COLOR mode ---")
-            original_image = cv2.imread(args.image, cv2.IMREAD_COLOR).astype(np.float32)
-            adversarial_image = cv2.imread(args.start_adversarial, cv2.IMREAD_COLOR).astype(np.float32)
+            print("--- Detected Color Mode: Processing in 3-channel mode. ---")
+            if is_orig_gray:
+                original_image = cv2.cvtColor(original_image, cv2.COLOR_GRAY2BGR)
+            if is_adv_gray:
+                adversarial_image = cv2.cvtColor(adversarial_image, cv2.COLOR_GRAY2BGR)
 
         # 自动处理尺寸不一致
-        if original_image.shape != adversarial_image.shape:
-            print(f"[Auto Resize] Original image shape {original_image.shape} != start-adversarial image shape {adversarial_image.shape}, resizing original image to match...")
-            original_image = cv2.resize(original_image, (adversarial_image.shape[1], adversarial_image.shape[0]))
+        if original_image.shape[:2] != adversarial_image.shape[:2]:
+            print(f"[Auto Resize] Original image shape {original_image.shape} != start-adversarial image shape {adversarial_image.shape}, resizing to match.")
+            # Resize original image to match adversarial to keep the adversarial property
+            adversarial_image = cv2.resize(adversarial_image, (original_image.shape[1], original_image.shape[0]))
+
+        # Ensure channels match after resize
+        if original_image.ndim != adversarial_image.ndim:
+             if original_image.ndim == 3 and adversarial_image.ndim == 2:
+                 adversarial_image = cv2.cvtColor(adversarial_image, cv2.COLOR_GRAY2BGR)
+             elif original_image.ndim == 2 and adversarial_image.ndim == 3:
+                 adversarial_image = cv2.cvtColor(adversarial_image, cv2.COLOR_BGR2GRAY)
+
 
         print("--- Verifying initial image states ---")
         _, encoded_orig = cv2.imencode(".png", original_image.astype(np.uint8))
@@ -352,7 +372,6 @@ if __name__ == "__main__":
     parser.add_argument("--step-size", type=float, default=1.0, help="Initial step size for moving away from the boundary. Note: This is now a fixed pixel value, not a factor.")
     parser.add_argument("--step-size-decay", type=float, default=0.99, help="Decay rate for the step size factor after each iteration.")
     # System
-    parser.add_argument("--grayscale", action="store_true", help="Load images in grayscale mode (for models like MNIST).")
     parser.add_argument("--workers", type=int, default=os.cpu_count(), help="Number of parallel processes for gradient estimation.")
     parser.add_argument("--output-dir", type=str, default="attack_outputs_hopskip_host", help="Directory to save output images and logs.")
     

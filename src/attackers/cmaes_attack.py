@@ -108,13 +108,12 @@ def evaluate_cma_solution(task_args):
     It takes a solution vector, creates the image, runs evaluation, and returns the loss.
     """
     solution_vector, original_image_flat, image_shape, temp_image_path, target_hooks, args = task_args
-    h, w, c = image_shape
 
     # 1. Recreate the image from the solution vector
     attack_image_flat = original_image_flat + solution_vector
     
     # 2. Reshape and clip to valid image constraints
-    attack_image = np.clip(attack_image_flat.reshape(h, w, c), 0, 255)
+    attack_image = np.clip(attack_image_flat.reshape(image_shape), 0, 255)
     
     # 3. Write image to disk for the executable
     _, encoded_image = cv2.imencode(".png", attack_image.astype(np.uint8))
@@ -245,11 +244,29 @@ def main(args):
                 raise FileNotFoundError(f"Required file not found: {f}")
 
         print("--- Getting target state from golden image ---")
-        golden_image = cv2.imread(args.golden_image, cv2.IMREAD_COLOR)
+        golden_image = cv2.imread(args.golden_image, cv2.IMREAD_UNCHANGED)
         if golden_image is None: raise FileNotFoundError(f"Could not read golden image: {args.golden_image}")
 
+        # Keep a copy of the original full-resolution image for reference if needed.
+        original_image_full_res = cv2.imread(args.image, cv2.IMREAD_UNCHANGED)
+        if original_image_full_res is None: raise FileNotFoundError(f"Could not read original image: {args.image}")
+
+        # --- Determine processing mode (Grayscale or Color) ---
+        is_golden_gray = golden_image.ndim == 2
+        is_original_gray = original_image_full_res.ndim == 2
+
+        if is_golden_gray and is_original_gray:
+            print("--- Detected Grayscale Mode: Processing in 1-channel mode. ---")
+        else:
+            print("--- Detected Color Mode: Processing in 3-channel mode. ---")
+            if is_golden_gray:
+                golden_image = cv2.cvtColor(golden_image, cv2.COLOR_GRAY2BGR)
+            if is_original_gray:
+                original_image_full_res = cv2.cvtColor(original_image_full_res, cv2.COLOR_GRAY2BGR)
+
+
         # Determine attack resolution. If image is smaller than max, use its own size.
-        h_orig, w_orig, _ = golden_image.shape
+        h_orig, w_orig = golden_image.shape[:2]
         max_h, max_w = MAX_ATTACK_RESOLUTION_HW
         if h_orig > max_h or w_orig > max_w:
             print(f"Golden image ({h_orig}x{w_orig}) is larger than max resolution ({max_h}x{max_w}). Resizing down.")
@@ -267,17 +284,20 @@ def main(args):
         if not is_golden_ok or not target_hooks:
             raise RuntimeError("Golden run failed or captured no hooks. Cannot proceed.")
         print(f"Target hooks captured: {target_hooks}")
-
-        # Keep a copy of the original full-resolution image for reference if needed.
-        original_image_full_res = cv2.imread(args.image, cv2.IMREAD_COLOR)
-        if original_image_full_res is None: raise FileNotFoundError(f"Could not read original image: {args.image}")
         
         # Resize original image to match the determined attack resolution for consistency.
         print(f"Resizing original image to match attack resolution: {attack_resolution_hw[0]}x{attack_resolution_hw[1]}")
         original_image = cv2.resize(original_image_full_res, (attack_resolution_hw[1], attack_resolution_hw[0]), interpolation=cv2.INTER_AREA)
 
-        h, w, c = original_image.shape
-        image_dimensionality = h * w * c
+        # Ensure channels match after resize, as cv2.resize on a gray image might not produce a gray image if size is tuple for color
+        if original_image.ndim != golden_image.ndim:
+            if golden_image.ndim == 3 and original_image.ndim == 2:
+                original_image = cv2.cvtColor(original_image, cv2.COLOR_GRAY2BGR)
+            elif golden_image.ndim == 2 and original_image.ndim == 3:
+                original_image = cv2.cvtColor(original_image, cv2.COLOR_BGR2GRAY)
+
+
+        image_dimensionality = np.prod(original_image.shape)
         
         # We are optimizing the PERTURBATION, not the image itself.
         # The initial solution is a zero vector, meaning no perturbation.
@@ -318,7 +338,7 @@ def main(args):
             for i, p_vec in enumerate(perturbation_vectors):
                 temp_image_name = f"temp_cmaes_{run_id}_{i}.png"
                 temp_image_path = os.path.join(workdir, temp_image_name)
-                tasks.append((p_vec, original_image_flat, (h, w, c), temp_image_path, target_hooks, args))
+                tasks.append((p_vec, original_image_flat, original_image.shape, temp_image_path, target_hooks, args))
 
             # 3. Evaluate the fitness (loss) of each solution in parallel
             losses = np.zeros(len(perturbation_vectors))
@@ -346,7 +366,7 @@ def main(args):
             # --- MODIFICATION: Create and save the LOW-RESOLUTION attack image ---
             # This is the image that was actually evaluated and is known to be effective.
             # The perturbation is clipped to the L-inf norm constraint for correctness.
-            best_perturbation_low_res = np.clip(current_best_solution, -l_inf, l_inf).reshape(h, w, c)
+            best_perturbation_low_res = np.clip(current_best_solution, -l_inf, l_inf).reshape(original_image.shape)
             final_attack_image_low_res = np.clip(original_image.astype(np.float32) + best_perturbation_low_res, 0, 255).astype(np.uint8)
 
             iter_time = time.time() - iter_start_time
@@ -376,7 +396,7 @@ def main(args):
                 print("--- Now attempting to upscale perturbation to full resolution... ---")
 
                 # Upscale the perturbation
-                h_full, w_full, _ = original_image_full_res.shape
+                h_full, w_full = original_image_full_res.shape[:2]
                 best_perturbation_high_res = cv2.resize(best_perturbation_low_res, (w_full, h_full), interpolation=cv2.INTER_CUBIC)
 
                 # Apply to full-res original image

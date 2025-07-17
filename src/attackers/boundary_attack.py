@@ -115,18 +115,30 @@ def main(args):
                 raise FileNotFoundError(f"Required file not found: {f}")
 
         # --- Initial Setup for Boundary Attack ---
-        # MODIFICATION: Load images in color (3 channels) instead of grayscale
-        print("--- Loading images in COLOR mode ---")
-        original_image = cv2.imread(args.image, cv2.IMREAD_COLOR).astype(np.float32)
-        adversarial_image = cv2.imread(args.start_adversarial, cv2.IMREAD_COLOR).astype(np.float32)
+        print("--- Loading images ---")
+        original_image = cv2.imread(args.image, cv2.IMREAD_UNCHANGED).astype(np.float32)
+        adversarial_image = cv2.imread(args.start_adversarial, cv2.IMREAD_UNCHANGED).astype(np.float32)
 
         if original_image is None:
             raise FileNotFoundError(f"Failed to load original image at: {args.image}")
         if adversarial_image is None:
             raise FileNotFoundError(f"Failed to load starting adversarial image at: {args.start_adversarial}")
+
+        # --- Determine processing mode (Grayscale or Color) ---
+        is_orig_gray = original_image.ndim == 2
+        is_adv_gray = adversarial_image.ndim == 2
+
+        if is_orig_gray and is_adv_gray:
+            print("--- Detected Grayscale Mode: Processing in 1-channel mode. ---")
+        else:
+            print("--- Detected Color Mode: Processing in 3-channel mode. ---")
+            if is_orig_gray:
+                original_image = cv2.cvtColor(original_image, cv2.COLOR_GRAY2BGR)
+            if is_adv_gray:
+                adversarial_image = cv2.cvtColor(adversarial_image, cv2.COLOR_GRAY2BGR)
         
         # MODIFICATION: Automatically resize the starting adversarial image if dimensions do not match
-        if original_image.shape != adversarial_image.shape:
+        if original_image.shape[:2] != adversarial_image.shape[:2]:
             print(f"Warning: Original image shape {original_image.shape} and starting adversarial shape {adversarial_image.shape} differ.")
             print("Resizing starting adversarial image to match original image's dimensions.")
             adversarial_image = cv2.resize(
@@ -134,6 +146,15 @@ def main(args):
                 (original_image.shape[1], original_image.shape[0]), 
                 interpolation=cv2.INTER_AREA
             )
+        
+        # Ensure channel counts match after potential resize
+        if original_image.ndim != adversarial_image.ndim:
+            print("Warning: Channel mismatch after resize. Re-converting adversarial image to match original.")
+            if original_image.ndim == 3 and adversarial_image.ndim == 2:
+                 adversarial_image = cv2.cvtColor(adversarial_image, cv2.COLOR_GRAY2BGR)
+            elif original_image.ndim == 2 and adversarial_image.ndim == 3:
+                 adversarial_image = cv2.cvtColor(adversarial_image, cv2.COLOR_BGR2GRAY)
+
 
         print("--- Verifying initial image states ---")
         _, encoded_orig = cv2.imencode(".png", original_image.astype(np.uint8))
