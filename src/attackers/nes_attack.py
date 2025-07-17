@@ -12,6 +12,7 @@ from concurrent.futures import ProcessPoolExecutor
 import shutil
 import tempfile
 import glob
+import time
 
 # --- Helper Functions for Host Machine Operations ---
 
@@ -279,10 +280,11 @@ def estimate_gradient_nes(image, args, target_hooks, workdir):
 # --- Main Attack Loop (Adapted for Host) ---
 
 def main(args):
-    loss_log_file = None
+    detailed_log_file = None
     attack_image = None
     best_loss_so_far = float('inf')
     total_queries = 0
+    start_time = time.time()
 
     # --- Graceful Termination on Ctrl+C ---
     # Set this process as a group leader. All subprocesses (workers) will be in this group.
@@ -312,12 +314,20 @@ def main(args):
     
     try:
         os.makedirs(args.output_dir, exist_ok=True)
-        print(f"--- NES Attacker (Host Version) Started. Outputs: {args.output_dir}, Temp workdir: {workdir} ---")
-
-        loss_log_path = os.path.join(args.output_dir, "nes_loss_log_host.csv")
-        loss_log_file = open(loss_log_path, 'w')
-        loss_log_file.write("iteration,loss\n")
-        print(f"--- Loss values will be logged to: {loss_log_path} ---")
+        
+        # --- Generate detailed log file name ---
+        timestamp = time.strftime("%Y%m%d-%H%M%S")
+        script_name = os.path.splitext(os.path.basename(sys.argv[0]))[0]
+        params_to_exclude = {'executable', 'image', 'hooks', 'model', 'golden_image', 'start_adversarial', 'output_dir', 'workers'}
+        args_dict = vars(args)
+        param_str = "_".join([f"{key}-{val}" for key, val in sorted(args_dict.items()) if key not in params_to_exclude and val is not None and val is not False])
+        param_str = re.sub(r'[^a-zA-Z0-9_\-.]', '_', param_str)
+        log_filename = f"{timestamp}_{script_name}_{param_str[:100]}.csv"
+        detailed_log_path = os.path.join(args.output_dir, log_filename)
+        
+        detailed_log_file = open(detailed_log_path, 'w')
+        detailed_log_file.write("iteration,total_queries,loss,iter_time_s,total_time_s\n")
+        print(f"--- Detailed metrics will be logged to: {detailed_log_path} ---")
 
         # Cosine Annealing with Warm Restarts parameters
         if args.enable_warm_restarts:
@@ -389,6 +399,7 @@ def main(args):
         epsilon_adam = 1e-8
 
         for i in range(args.iterations):
+            iter_start_time = time.time()
             print(f"--- Iteration {i+1}/{args.iterations} (Total Queries: {total_queries}) ---")
             
             if args.enable_warm_restarts:
@@ -458,9 +469,13 @@ def main(args):
                 total_queries += 1
                 loss = calculate_loss(current_hooks, target_hooks)
             
-            print(f"Attack result: {'Success' if is_successful else 'Fail'}. Internal state loss: {loss:.6f}")
-            loss_log_file.write(f"{i+1},{loss:.6f}\n")
-            loss_log_file.flush()
+            iter_time = time.time() - iter_start_time
+            total_time_so_far = time.time() - start_time
+            print(f"Attack result: {'Success' if is_successful else 'Fail'}. Loss: {loss:.6f}. Iter Time: {iter_time:.2f}s. Total Time: {total_time_so_far:.2f}s")
+            
+            # Write to the new detailed log file
+            detailed_log_file.write(f"{i+1},{total_queries},{loss:.6f},{iter_time:.2f},{total_time_so_far:.2f}\n")
+            detailed_log_file.flush()
 
             # --- Save latest and best images ---
             latest_image_path = os.path.join(args.output_dir, "latest_attack_image_nes_host.png")
@@ -511,8 +526,8 @@ def main(args):
             cv2.imwrite(interrupted_image_path, attack_image.astype(np.uint8))
             print(f"Last image saved to: {interrupted_image_path}")
     finally:
-        if loss_log_file:
-            loss_log_file.close()
+        if detailed_log_file:
+            detailed_log_file.close()
         # Clean up the temporary directory
         if workdir and os.path.exists(workdir):
             shutil.rmtree(workdir)

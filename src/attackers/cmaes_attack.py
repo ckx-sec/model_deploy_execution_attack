@@ -13,6 +13,7 @@ import shutil
 import tempfile
 import glob
 import cma # Import CMA-ES library
+import time
 
 # --- Helper Functions for Host Machine Operations (Unchanged) ---
 
@@ -192,9 +193,11 @@ def calculate_loss(current_hooks, target_hooks, margin=0.0, weights=None):
 # --- Main Attack Loop (Replaced with CMA-ES) ---
 
 def main(args):
-    loss_log_file = None
+    detailed_log_file = None
     best_attack_image_low_res = None
     best_loss_so_far = float('inf')
+    total_queries = 0
+    start_time = time.time()
 
     # Define a smaller, maximum resolution for the attack to avoid memory issues with CMA-ES
     MAX_ATTACK_RESOLUTION_HW = (64, 64)
@@ -219,12 +222,21 @@ def main(args):
 
     try:
         os.makedirs(args.output_dir, exist_ok=True)
-        print(f"--- CMA-ES Attacker (Host Version) Started. Outputs: {args.output_dir}, Temp workdir: {workdir} ---")
+        
+        # --- Generate detailed log file name ---
+        timestamp = time.strftime("%Y%m%d-%H%M%S")
+        script_name = os.path.splitext(os.path.basename(sys.argv[0]))[0]
+        params_to_exclude = {'executable', 'image', 'hooks', 'model', 'golden_image', 'start_adversarial', 'output_dir', 'workers'}
+        args_dict = vars(args)
+        param_str = "_".join([f"{key}-{val}" for key, val in sorted(args_dict.items()) if key not in params_to_exclude and val is not None and val is not False])
+        param_str = re.sub(r'[^a-zA-Z0-9_\-.]', '_', param_str) # Sanitize
+        log_filename = f"{timestamp}_{script_name}_{param_str[:100]}.csv"
+        detailed_log_path = os.path.join(args.output_dir, log_filename)
+        
+        detailed_log_file = open(detailed_log_path, 'w')
+        detailed_log_file.write("iteration,total_queries,generation_best_loss,overall_best_loss,iter_time_s,total_time_s\n")
+        print(f"--- Detailed metrics will be logged to: {detailed_log_path} ---")
 
-        loss_log_path = os.path.join(args.output_dir, "cmaes_loss_log_host.csv")
-        loss_log_file = open(loss_log_path, 'w')
-        loss_log_file.write("iteration,loss,best_loss\n")
-        print(f"--- Loss values will be logged to: {loss_log_path} ---")
 
         print("--- Verifying local paths ---")
         static_files = [args.executable, args.model, args.hooks, args.golden_image, args.image]
@@ -250,6 +262,7 @@ def main(args):
 
         _, encoded_golden = cv2.imencode(".png", golden_image)
         is_golden_ok, target_hooks = run_attack_iteration_for_verification(encoded_golden.tobytes(), args, workdir, "temp_golden.png")
+        total_queries += 1
 
         if not is_golden_ok or not target_hooks:
             raise RuntimeError("Golden run failed or captured no hooks. Cannot proceed.")
@@ -293,7 +306,8 @@ def main(args):
 
         while not es.stop():
             iteration += 1
-            print(f"--- Iteration {iteration}/{args.iterations} (Eval: {es.countevals}) ---")
+            iter_start_time = time.time()
+            print(f"--- Iteration {iteration}/{args.iterations} (Total Queries: {total_queries}) ---")
             
             # 1. Ask for a new population of solutions (perturbation vectors)
             perturbation_vectors = es.ask()
@@ -312,6 +326,7 @@ def main(args):
             try:
                 with ProcessPoolExecutor(max_workers=args.workers) as executor:
                     results = executor.map(evaluate_cma_solution, tasks)
+                    total_queries += len(perturbation_vectors) # Increment queries here
                     for i, loss in enumerate(results):
                         losses[i] = loss
                         print(f"Evaluation progress: {i + 1}/{len(perturbation_vectors)}", end='\r')
@@ -334,9 +349,11 @@ def main(args):
             best_perturbation_low_res = np.clip(current_best_solution, -l_inf, l_inf).reshape(h, w, c)
             final_attack_image_low_res = np.clip(original_image.astype(np.float32) + best_perturbation_low_res, 0, 255).astype(np.uint8)
 
-            print(f"Best loss this generation: {np.min(losses):.6f}. Overall best loss: {current_best_loss:.6f}")
-            loss_log_file.write(f"{iteration},{np.min(losses):.6f},{current_best_loss:.6f}\n")
-            loss_log_file.flush()
+            iter_time = time.time() - iter_start_time
+            total_time_so_far = time.time() - start_time
+            print(f"Best loss gen: {np.min(losses):.6f}. Overall best: {current_best_loss:.6f}. Iter Time: {iter_time:.2f}s. Total Time: {total_time_so_far:.2f}s")
+            detailed_log_file.write(f"{iteration},{total_queries},{np.min(losses):.6f},{current_best_loss:.6f},{iter_time:.2f},{total_time_so_far:.2f}\n")
+            detailed_log_file.flush()
 
             # Save latest and best images (now in low resolution, which is the validated result)
             latest_image_path = os.path.join(args.output_dir, "latest_attack_image_cmaes_host_lowres.png")
@@ -352,6 +369,7 @@ def main(args):
             # Check for success condition on the downscaled image
             _, encoded_image = cv2.imencode(".png", best_attack_image_low_res)
             is_successful, _ = run_attack_iteration_for_verification(encoded_image.tobytes(), args, workdir, "temp_verify.png")
+            total_queries += 1 # Increment for verification check
 
             if is_successful:
                 print("\n--- Low-resolution attack successful! ---")
@@ -367,6 +385,7 @@ def main(args):
                 # Final verification
                 _, encoded_high_res = cv2.imencode(".png", final_attack_image_high_res)
                 is_high_res_successful, _ = run_attack_iteration_for_verification(encoded_high_res.tobytes(), args, workdir, "temp_verify_highres.png")
+                total_queries += 1 # Increment for final high-res check
                 
                 if is_high_res_successful:
                     print("\n--- SUCCESS! Upscaled attack image is verified to be adversarial. ---")
@@ -398,9 +417,9 @@ def main(args):
             interrupted_image_path = os.path.join(args.output_dir, "interrupted_attack_image_cmaes_host_lowres.png")
             cv2.imwrite(interrupted_image_path, best_attack_image_low_res)
             print(f"Last best image saved to: {interrupted_image_path}")
+            
     finally:
-        if loss_log_file:
-            loss_log_file.close()
+        if detailed_log_file: detailed_log_file.close()
         if workdir and os.path.exists(workdir):
             shutil.rmtree(workdir)
             print(f"Temporary directory {workdir} cleaned up.")

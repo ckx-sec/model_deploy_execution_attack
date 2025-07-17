@@ -10,6 +10,7 @@ import json
 import shutil
 import tempfile
 import uuid
+import time
 
 # --- Core Host Execution Logic & Helpers (Reused) ---
 
@@ -90,9 +91,10 @@ def binary_search_to_boundary(original_image, adversarial_image, args, workdir, 
 # --- Main Attack Loop ---
 
 def main(args):
-    dist_log_file = None
+    detailed_log_file = None
     adversarial_image = None
     best_l2_distance = float('inf')
+    start_time = time.time()
 
     try:
         os.setpgrp()
@@ -110,12 +112,20 @@ def main(args):
     
     try:
         os.makedirs(args.output_dir, exist_ok=True)
-        print(f"--- Sign-OPT Attacker (Host Version) Started. Outputs: {args.output_dir}, Temp workdir: {workdir} ---")
-
-        dist_log_path = os.path.join(args.output_dir, "signopt_dist_log_host.csv")
-        dist_log_file = open(dist_log_path, 'w')
-        dist_log_file.write("iteration,query_count,l2_distance,l_inf_norm\n")
-        print(f"--- Distance values will be logged to: {dist_log_path} ---")
+        
+        # --- Generate detailed log file name ---
+        timestamp = time.strftime("%Y%m%d-%H%M%S")
+        script_name = os.path.splitext(os.path.basename(sys.argv[0]))[0]
+        params_to_exclude = {'executable', 'image', 'hooks', 'model', 'start_adversarial', 'output_dir', 'workers'}
+        args_dict = vars(args)
+        param_str = "_".join([f"{key}-{val}" for key, val in sorted(args_dict.items()) if key not in params_to_exclude and val is not None and val is not False])
+        param_str = re.sub(r'[^a-zA-Z0-9_\-.]', '_', param_str) # Sanitize
+        log_filename = f"{timestamp}_{script_name}_{param_str[:100]}.csv"
+        detailed_log_path = os.path.join(args.output_dir, log_filename)
+        
+        detailed_log_file = open(detailed_log_path, 'w')
+        detailed_log_file.write("iteration,total_queries,l2_distance,l_inf_norm,iter_time_s,total_time_s\n")
+        print(f"--- Detailed metrics will be logged to: {detailed_log_path} ---")
 
         print("--- Verifying local paths ---")
         static_files = [args.executable, args.model, args.hooks, args.start_adversarial, args.image]
@@ -138,6 +148,7 @@ def main(args):
         print(f"Starting adversarial image is correctly adversarial ('true'). Queries: {query_count[0]}")
 
         for i in range(args.iterations):
+            iter_start_time = time.time()
             print(f"--- Iteration {i+1}/{args.iterations} (Total Queries: {query_count[0]}) ---")
 
             # 1. Choose a random search direction
@@ -177,9 +188,11 @@ def main(args):
             l2_dist = np.linalg.norm(adversarial_image - original_image)
             linf_dist = np.max(np.abs(adversarial_image - original_image))
             
-            print(f"Current L2 distance: {l2_dist:.4f}, L-inf norm: {linf_dist:.4f}")
-            dist_log_file.write(f"{i+1},{query_count[0]},{l2_dist:.6f},{linf_dist:.6f}\n")
-            dist_log_file.flush()
+            iter_time = time.time() - iter_start_time
+            total_time_so_far = time.time() - start_time
+            print(f"L2: {l2_dist:.4f}, L-inf: {linf_dist:.4f}. Iter Time: {iter_time:.2f}s. Total Time: {total_time_so_far:.2f}s")
+            detailed_log_file.write(f"{i+1},{query_count[0]},{l2_dist:.6f},{linf_dist:.6f},{iter_time:.2f},{total_time_so_far:.2f}\n")
+            detailed_log_file.flush()
 
             latest_image_path = os.path.join(args.output_dir, "latest_attack_image_signopt_host.png")
             cv2.imwrite(latest_image_path, adversarial_image.astype(np.uint8))
@@ -196,7 +209,7 @@ def main(args):
             interrupted_image_path = os.path.join(args.output_dir, "interrupted_attack_image_signopt_host.png")
             cv2.imwrite(interrupted_image_path, adversarial_image.astype(np.uint8))
     finally:
-        if dist_log_file: dist_log_file.close()
+        if detailed_log_file: detailed_log_file.close()
         if workdir and os.path.exists(workdir): shutil.rmtree(workdir)
         print("Cleanup finished.")
 

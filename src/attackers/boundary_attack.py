@@ -70,11 +70,12 @@ def check_image_is_adversarial(image_content, args, workdir, image_name_on_host)
 # --- Main Boundary Attack Loop ---
 
 def main(args):
-    dist_log_file = None
+    detailed_log_file = None
     adversarial_image = None
     best_l2_distance = float('inf')
     last_best_l2_distance = float('inf')
     patience_counter = 0
+    start_time = time.time()
 
     try:
         os.setpgrp()
@@ -92,12 +93,20 @@ def main(args):
     
     try:
         os.makedirs(args.output_dir, exist_ok=True)
-        print(f"--- Boundary Attacker (Host Version) Started. Outputs: {args.output_dir}, Temp workdir: {workdir} ---")
-
-        dist_log_path = os.path.join(args.output_dir, "boundary_dist_log_host.csv")
-        dist_log_file = open(dist_log_path, 'w')
-        dist_log_file.write("iteration,query_count,l2_distance,l_inf_norm\n")
-        print(f"--- Distance values will be logged to: {dist_log_path} ---")
+        
+        # --- Generate detailed log file name ---
+        timestamp = time.strftime("%Y%m%d-%H%M%S")
+        script_name = os.path.splitext(os.path.basename(sys.argv[0]))[0]
+        params_to_exclude = {'executable', 'image', 'hooks', 'model', 'start_adversarial', 'output_dir', 'workers'}
+        args_dict = vars(args)
+        param_str = "_".join([f"{key}-{val}" for key, val in sorted(args_dict.items()) if key not in params_to_exclude and val is not None and val is not False])
+        param_str = re.sub(r'[^a-zA-Z0-9_\-.]', '_', param_str) # Sanitize
+        log_filename = f"{timestamp}_{script_name}_{param_str[:100]}.csv"
+        detailed_log_path = os.path.join(args.output_dir, log_filename)
+        
+        detailed_log_file = open(detailed_log_path, 'w')
+        detailed_log_file.write("iteration,total_queries,l2_distance,l_inf_norm,iter_time_s,total_time_s\n")
+        print(f"--- Detailed metrics will be logged to: {detailed_log_path} ---")
 
         print("--- Verifying local paths ---")
         static_files = [args.executable, args.model, args.hooks, args.start_adversarial, args.image]
@@ -152,6 +161,7 @@ def main(args):
         # MODIFICATION: Use ProcessPoolExecutor for parallel execution
         with ProcessPoolExecutor(max_workers=args.workers) as executor:
             for i in range(args.iterations):
+                iter_start_time = time.time()
                 if args.dynamic_steps:
                     print(f"--- Iteration {i+1}/{args.iterations} (Queries: {query_count}) [src_step={source_step:.1e}, sph_step={spherical_step:.1e}] ---")
                 else:
@@ -242,9 +252,11 @@ def main(args):
                 l2_dist = np.linalg.norm(adversarial_image - original_image)
                 linf_dist = np.max(np.abs(adversarial_image - original_image))
             
-                print(f"Current L2 distance: {l2_dist:.4f}, L-inf norm: {linf_dist:.4f}")
-                dist_log_file.write(f"{i+1},{query_count},{l2_dist:.6f},{linf_dist:.6f}\n")
-                dist_log_file.flush()
+                iter_time = time.time() - iter_start_time
+                total_time_so_far = time.time() - start_time
+                print(f"L2: {l2_dist:.4f}, L-inf: {linf_dist:.4f}. Iter Time: {iter_time:.2f}s. Total Time: {total_time_so_far:.2f}s")
+                detailed_log_file.write(f"{i+1},{query_count},{l2_dist:.6f},{linf_dist:.6f},{iter_time:.2f},{total_time_so_far:.2f}\n")
+                detailed_log_file.flush()
 
                 latest_image_path = os.path.join(args.output_dir, "latest_attack_image_boundary_host.png")
                 cv2.imwrite(latest_image_path, adversarial_image.astype(np.uint8))
@@ -279,11 +291,8 @@ def main(args):
             cv2.imwrite(interrupted_image_path, adversarial_image.astype(np.uint8))
             print(f"Last best image saved to: {interrupted_image_path}")
     finally:
-        if dist_log_file:
-            dist_log_file.close()
-        if workdir and os.path.exists(workdir):
-            shutil.rmtree(workdir)
-            print(f"Temporary directory {workdir} cleaned up.")
+        if detailed_log_file: detailed_log_file.close()
+        if workdir and os.path.exists(workdir): shutil.rmtree(workdir)
         print("Cleanup finished.")
 
 if __name__ == "__main__":

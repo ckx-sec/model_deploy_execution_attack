@@ -12,6 +12,7 @@ from concurrent.futures import ProcessPoolExecutor
 import shutil
 import tempfile
 import glob
+import time
 
 # --- Helper Functions for Host Machine Operations (Largely Unchanged) ---
 
@@ -230,9 +231,11 @@ def estimate_gradient_spsa(image, args, target_hooks, workdir):
 # --- Main Attack Loop (Adapted for SPSA) ---
 
 def main(args):
-    loss_log_file = None
+    detailed_log_file = None
     attack_image = None
     best_loss_so_far = float('inf')
+    total_queries = 0
+    start_time = time.time()
 
     try:
         os.setpgrp()
@@ -250,15 +253,24 @@ def main(args):
     
     try:
         os.makedirs(args.output_dir, exist_ok=True)
-        print(f"--- SPSA Attacker (Host Version) Started. Outputs: {args.output_dir}, Temp workdir: {workdir} ---")
+        
+        # --- Generate detailed log file name ---
+        timestamp = time.strftime("%Y%m%d-%H%M%S")
+        script_name = os.path.splitext(os.path.basename(sys.argv[0]))[0]
+        params_to_exclude = {'executable', 'image', 'hooks', 'model', 'golden_image', 'start_adversarial', 'output_dir', 'workers'}
+        args_dict = vars(args)
+        param_str = "_".join([f"{key}-{val}" for key, val in sorted(args_dict.items()) if key not in params_to_exclude and val is not None and val is not False])
+        param_str = re.sub(r'[^a-zA-Z0-9_\-.]', '_', param_str) # Sanitize
+        log_filename = f"{timestamp}_{script_name}_{param_str[:100]}.csv"
+        detailed_log_path = os.path.join(args.output_dir, log_filename)
+        
+        detailed_log_file = open(detailed_log_path, 'w')
+        detailed_log_file.write("iteration,total_queries,loss,iter_time_s,total_time_s\n")
+        print(f"--- Detailed metrics will be logged to: {detailed_log_path} ---")
 
-        loss_log_path = os.path.join(args.output_dir, "spsa_loss_log_host.csv")
-        loss_log_file = open(loss_log_path, 'w')
-        loss_log_file.write("iteration,loss\n")
-        print(f"--- Loss values will be logged to: {loss_log_path} ---")
 
         print("--- Verifying local paths ---")
-        static_files = [args.executable, args.model, args.hooks, args.golden_image, args.image]
+        static_files = [args.executable, args.model, args.hooks]
         for f in static_files:
             if not os.path.exists(f):
                 raise FileNotFoundError(f"Required file not found: {f}")
@@ -267,6 +279,7 @@ def main(args):
         golden_image_bytes = cv2.imread(args.golden_image, cv2.IMREAD_UNCHANGED)
         _, encoded_golden = cv2.imencode(".png", golden_image_bytes)
         is_golden_ok, target_hooks = run_attack_iteration(encoded_golden.tobytes(), args, workdir, "temp_golden.png")
+        total_queries += 1
 
         if not is_golden_ok or not target_hooks:
             raise RuntimeError("Golden run failed or captured no hooks. Cannot proceed.")
@@ -291,10 +304,12 @@ def main(args):
             print(f"    Decay Rate: {args.lr_decay_rate}, Patience: {args.stagnation_patience}, Min Delta: {args.min_loss_delta}")
 
         for i in range(args.iterations):
-            print(f"--- Iteration {i+1}/{args.iterations} (LR: {current_lr:.6f}) ---")
+            iter_start_time = time.time()
+            print(f"--- Iteration {i+1}/{args.iterations} (Total Queries: {total_queries}, LR: {current_lr:.6f}) ---")
             
             # Use the SPSA gradient estimator
             grad = estimate_gradient_spsa(attack_image, args, target_hooks, workdir)
+            total_queries += 2
             
             # Adam Optimizer Update
             t = i + 1
@@ -312,11 +327,14 @@ def main(args):
             # Verification and Logging
             _, encoded_image = cv2.imencode(".png", attack_image.astype(np.uint8))
             is_successful, current_hooks = run_attack_iteration(encoded_image.tobytes(), args, workdir, "temp_verify.png")
+            total_queries += 1
             loss = calculate_loss(current_hooks, target_hooks)
             
-            print(f"Attack result: {'Success' if is_successful else 'Fail'}. Internal state loss: {loss:.6f}")
-            loss_log_file.write(f"{i+1},{loss:.6f}\n")
-            loss_log_file.flush()
+            iter_time = time.time() - iter_start_time
+            total_time_so_far = time.time() - start_time
+            print(f"Result: {'Success' if is_successful else 'Fail'}. Loss: {loss:.6f}. Iter Time: {iter_time:.2f}s. Total Time: {total_time_so_far:.2f}s")
+            detailed_log_file.write(f"{i+1},{total_queries},{loss:.6f},{iter_time:.2f},{total_time_so_far:.2f}\n")
+            detailed_log_file.flush()
 
             # --- Learning Rate Decay Logic ---
             if args.enable_lr_decay:
@@ -356,10 +374,9 @@ def main(args):
             print("Saving the last best image...")
             interrupted_image_path = os.path.join(args.output_dir, "interrupted_attack_image_spsa_host.png")
             cv2.imwrite(interrupted_image_path, attack_image.astype(np.uint8))
-            print(f"Last best image saved to: {interrupted_image_path}")
+            print(f"Last image saved to: {interrupted_image_path}")
     finally:
-        if loss_log_file:
-            loss_log_file.close()
+        if detailed_log_file: detailed_log_file.close()
         if workdir and os.path.exists(workdir):
             shutil.rmtree(workdir)
             print(f"Temporary directory {workdir} cleaned up.")
