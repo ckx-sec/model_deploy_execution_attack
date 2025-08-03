@@ -44,6 +44,48 @@ def remove_files_on_host_batch(file_pattern):
 
 # --- Worker Functions for Parallel Execution ---
 
+def get_executable_output(image_path_on_host, args):
+    """
+    Runs the executable on the host for a given image and returns the raw output.
+    This version runs the executable directly, without GDB, to get a clean output.
+    """
+    executable_on_host = args.executable
+    model_on_host = args.model
+
+    # --- Construct the command to run the executable directly ---
+    command = [
+        os.path.abspath(executable_on_host),
+        os.path.abspath(model_on_host),
+        os.path.abspath(image_path_on_host)
+    ]
+
+    # --- Set up the environment with LD_LIBRARY_PATH ---
+    # This is crucial for the executable to find the MNN/ONNXRuntime libraries.
+    script_dir = os.path.dirname(__file__)
+    project_root = os.path.abspath(os.path.join(script_dir, '..', '..'))
+    mnn_lib_path = os.path.join(project_root, 'third_party', 'mnn', 'lib')
+    onnx_lib_path = os.path.join(project_root, 'third_party', 'onnxruntime', 'lib')
+    
+    # Get the existing environment and update LD_LIBRARY_PATH
+    env = os.environ.copy()
+    existing_ld_path = env.get('LD_LIBRARY_PATH', '')
+    env['LD_LIBRARY_PATH'] = f"{mnn_lib_path}:{onnx_lib_path}:{existing_ld_path}"
+
+    try:
+        # Execute the command directly, with the correct environment
+        result = subprocess.run(
+            command, 
+            check=True, 
+            capture_output=True, 
+            text=True, 
+            timeout=30, # A shorter timeout is fine as we are not starting GDB
+            env=env
+        )
+        return result.stdout + "\n" + result.stderr
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        stderr = e.stderr if hasattr(e, 'stderr') else "Timeout or error during execution"
+        return f"Error running host executable for '{image_path_on_host}': {stderr}"
+
 def _run_executable_and_parse_hooks(image_path_on_host, args):
     """
     Runs the executable on the host for a given image path and parses hook results.
@@ -82,7 +124,8 @@ def _run_executable_and_parse_hooks(image_path_on_host, args):
     output_lines = full_output.splitlines()
 
     for line in output_lines:
-        if "true" in line.lower() and "HOOK_RESULT" not in line: is_successful = True
+        #if "Conclusion:" in line : print(line)
+        if "Conclusion: Real face" in line and "HOOK_RESULT" not in line: is_successful = True
         if "HOOK_RESULT" in line:
             match = re.search(r'offset=(0x[0-9a-fA-F]+)\s+.*value=(.*)', line)
             if not match: continue
@@ -556,6 +599,12 @@ def main(args):
                 best_image_path = os.path.join(args.output_dir, "best_attack_image_nes_host.png")
                 cv2.imwrite(best_image_path, attack_image.astype(np.uint8))
 
+                # --- Verification of the current best image ---
+                print("--- Verifying current best image ---")
+                best_image_output = get_executable_output(best_image_path, args)
+                print("Execution Output on Current Best Image:")
+                print(best_image_output)
+
             # Update Stagnation Counter
             if args.enable_stagnation_decay:
                 if loss < best_loss_for_stagnation - args.min_loss_delta:
@@ -583,6 +632,13 @@ def main(args):
                 successful_image_path = os.path.join(args.output_dir, "successful_attack_image_nes_host.png")
                 cv2.imwrite(successful_image_path, attack_image.astype(np.uint8))
                 print(f"Adversarial image saved to: {successful_image_path}")
+                
+                # --- Verification Step ---
+                print("\n--- Verifying final image ---")
+                final_output = get_executable_output(successful_image_path, args)
+                print("Execution Output on Successful Image:")
+                print(final_output)
+                
                 break
 
     except (FileNotFoundError, RuntimeError) as e:

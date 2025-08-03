@@ -195,6 +195,7 @@ def main(args):
     detailed_log_file = None
     best_attack_image_low_res = None
     best_loss_so_far = float('inf')
+    best_image_path = None # To track the path of the best image for restarts
     total_queries = 0
     start_time = time.time()
 
@@ -324,9 +325,56 @@ def main(args):
         # Keep a full-resolution copy for the final step
         original_image_full_res_float = original_image_full_res.astype(np.float32)
 
+        # --- Warm Restart Setup ---
+        if args.enable_warm_restarts:
+            print("--- 'Restart from Best' enabled ---")
+            T_i = args.restart_cycle_len
+            current_cycle = 0
+            iteration_in_cycle = 0
+
         while not es.stop():
             iteration += 1
             iter_start_time = time.time()
+            
+            # --- "Restart from Best" Logic for CMA-ES ---
+            if args.enable_warm_restarts:
+                iteration_in_cycle += 1
+                if iteration_in_cycle > T_i:
+                    iteration_in_cycle = 1
+                    current_cycle += 1
+
+                    if current_cycle < args.restart_cycles:
+                        T_i = int(T_i * args.restart_cycle_mult)
+                        
+                        if best_image_path and os.path.exists(best_image_path):
+                            print(f"--- RESTART FROM BEST: Loading best image from {best_image_path}. ---")
+                            loaded_image = cv2.imread(best_image_path, cv2.IMREAD_UNCHANGED)
+                            if loaded_image is not None:
+                                # This is the "center drift"
+                                original_image = loaded_image.astype(np.float32)
+                                original_image_flat = original_image.flatten()
+                                print("--- Updating base image for perturbation. CMA-ES will be reset. ---")
+
+                                # Reset CMA-ES around a zero perturbation from the new center
+                                initial_perturbation = np.zeros(image_dimensionality, dtype=np.float32)
+                                es = cma.CMAEvolutionStrategy(initial_perturbation, args.sigma, {
+                                    'popsize': args.population_size,
+                                    'bounds': bounds,
+                                    'maxiter': args.iterations, # Outer loop controls this
+                                    'verbose': -9
+                                })
+                                print(f"--- Starting new cycle {current_cycle+1} with length {T_i}. CMA-ES optimizer reset. ---")
+                            else:
+                                print(f"Warning: Failed to load best image. Restarting CMA-ES from current best solution.")
+                                es = cma.CMAEvolutionStrategy(es.result.xbest, args.sigma, {'popsize': args.population_size, 'bounds': bounds, 'maxiter': args.iterations, 'verbose': -9})
+                        else:
+                            print(f"--- WARM RESTART (no best image yet): Resetting optimizer at current best position. ---")
+                            es = cma.CMAEvolutionStrategy(es.result.xbest, args.sigma, {'popsize': args.population_size, 'bounds': bounds, 'maxiter': args.iterations, 'verbose': -9})
+                    else:
+                        print("--- All restart cycles completed. ---")
+                        # Disable future restarts to avoid re-entering this block
+                        args.enable_warm_restarts = False
+            
             print(f"--- Iteration {iteration}/{args.iterations} (Total Queries: {total_queries}) ---")
             
             # 1. Ask for a new population of solutions (perturbation vectors)
@@ -459,6 +507,12 @@ if __name__ == "__main__":
     # CMA-ES Hyperparameters
     parser.add_argument("--population-size", type=int, default=20, help="Population size (lambda) for CMA-ES.")
     parser.add_argument("--sigma", type=float, default=5.0, help="Initial standard deviation (step size) for CMA-ES.")
+    # Warm Restarts
+    warm_restart_group = parser.add_argument_group("Warm Restarts")
+    warm_restart_group.add_argument("--enable-warm-restarts", action="store_true", help="Enable 'Restart from Best' strategy.")
+    warm_restart_group.add_argument("--restart-cycles", type=int, default=3, help="Number of warm restart cycles.")
+    warm_restart_group.add_argument("--restart-cycle-len", type=int, default=100, help="Length of the first cycle in iterations.")
+    warm_restart_group.add_argument("--restart-cycle-mult", type=int, default=2, help="Factor to multiply cycle length by after each restart.")
     # System
     parser.add_argument("--workers", type=int, default=os.cpu_count(), help="Number of parallel processes for evaluation.")
     parser.add_argument("--output-dir", type=str, default="attack_outputs_cmaes_host", help="Directory to save output images and logs.")
