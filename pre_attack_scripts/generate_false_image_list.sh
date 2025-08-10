@@ -16,7 +16,7 @@
 # --- Configuration ---
 # Directory containing the images to test.
 # IMPORTANT: Update this path to your image dataset.
-IMAGE_DIR="resources/images/img_align_celeba"
+IMAGE_DIR="/home/ckx/img_align_celeba"
 # Directory where model files are stored.
 MODEL_DIR="resources/models"
 # Directory to save the list of false images.
@@ -54,6 +54,12 @@ if [ ! -d "$OUTPUT_DIR" ]; then
     echo "Info: Output directory '$OUTPUT_DIR' not found. Creating it."
     mkdir -p "$OUTPUT_DIR"
 fi
+
+# --- Environment Setup for Shared Libraries ---
+# Add third-party library paths to LD_LIBRARY_PATH to ensure executables can find them.
+# This assumes the script is run from the root of the `model_deploy_execution_attack` directory.
+export LD_LIBRARY_PATH=third_party/mnn/lib:third_party/ncnn/lib:third_party/onnxruntime/lib:$LD_LIBRARY_PATH
+
 
 # --- Dynamic Configuration ---
 # Extract the base name of the executable to create a unique output file name.
@@ -208,10 +214,6 @@ while read -r image_path; do
         # Log the full path of the image to the output file
         echo "$image_path" >> "$FALSE_LIST_FILE"
         ((false_count++))
-    else
-        # Optional: uncomment the line below to also see 'true' detections
-        # echo "[TRUE]  -> $image_name"
-        : # Do nothing for true images
     fi
 
     ((processed_count++))
