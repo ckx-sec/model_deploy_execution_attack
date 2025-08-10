@@ -188,18 +188,11 @@ echo "=================================================="
 # Initialize counters
 processed_count=0
 false_count=0
-# Optional: Set a limit for the number of images to process
-limit=1000
+# Optional: Set a limit for the number of 'false' images to find
+FALSE_IMAGE_LIMIT=200
 
 # Loop through all common image file types in the directory
 while read -r image_path; do
-    # Optional: Uncomment to enforce a processing limit
-    if [ -n "$limit" ] && [ "$processed_count" -ge "$limit" ]; then
-        echo ""
-        echo "Reached the processing limit of $limit images. Stopping."
-        break
-    fi
-
     # Extract just the filename for cleaner logging
     image_name=$(basename "$image_path")
 
@@ -225,6 +218,13 @@ while read -r image_path; do
     # Provide progress feedback every 50 images
     if (( processed_count % 50 == 0 )); then
         echo "Processed $processed_count images..."
+    fi
+
+    # Check if we have found enough 'false' images and break if so
+    if [ -n "$FALSE_IMAGE_LIMIT" ] && [ "$false_count" -ge "$FALSE_IMAGE_LIMIT" ]; then
+        echo ""
+        echo "Found $false_count 'false' images, which reaches the limit of $FALSE_IMAGE_LIMIT. Stopping."
+        break
     fi
 done < <(find "$IMAGE_DIR" -type f \( -iname \*.jpg -o -iname \*.jpeg -o -iname \*.png -o -iname \*.bmp \))
 
