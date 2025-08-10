@@ -1,47 +1,53 @@
 [
     {
-        "address": "0x2354", 
-        "original_branch_instruction": "b.mi", 
-        "branch_target": "0x2414", 
-        "instruction": "fcmpe s8,s0", 
+        "address": "0x2354",
+        "original_branch_instruction": "b.mi",
+        "branch_target": "0x2414",
+        "instruction": "fcmpe s8,s0",
         "registers": [
             {
                 "register": "0x41200000"
-            }, 
+            },
             {
                 "register": "s8"
             }
-        ], 
-        "original_branch_address": "0x2358"
-    }, 
+        ],
+        "original_branch_address": "0x2358",
+        "branch_condition_meaning": "(s8) is negative (Most Significant Bit is 1) (s0)",
+        "loss_function_name": "Logistic Loss"
+    },
     {
-        "address": "0x2420", 
-        "original_branch_instruction": "b.mi", 
-        "branch_target": "0x242c", 
-        "instruction": "fcmpe s9,s0", 
+        "address": "0x2420",
+        "original_branch_instruction": "b.mi",
+        "branch_target": "0x242c",
+        "instruction": "fcmpe s9,s0",
         "registers": [
             {
                 "register": "0x41200000"
-            }, 
+            },
             {
                 "register": "s9"
             }
-        ], 
-        "original_branch_address": "0x2424"
-    }, 
+        ],
+        "original_branch_address": "0x2424",
+        "branch_condition_meaning": "(s9) is negative (Most Significant Bit is 1) (s0)",
+        "loss_function_name": "Logistic Loss"
+    },
     {
-        "address": "0x2438", 
-        "original_branch_instruction": "b.mi", 
-        "branch_target": "0x2478", 
-        "instruction": "fcmpe s10,s0", 
+        "address": "0x2438",
+        "original_branch_instruction": "b.mi",
+        "branch_target": "0x2478",
+        "instruction": "fcmpe s10,s0",
         "registers": [
             {
                 "register": "0x41200000"
-            }, 
+            },
             {
                 "register": "s10"
             }
-        ], 
-        "original_branch_address": "0x243c"
+        ],
+        "original_branch_address": "0x243c",
+        "branch_condition_meaning": "(s10) is negative (Most Significant Bit is 1) (s0)",
+        "loss_function_name": "Logistic Loss"
     }
 ]

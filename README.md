@@ -2,57 +2,92 @@
 
 This project is an automated adversarial attack experimentation platform targeting the security of **binary-level AI model deployments**. It supports multiple mainstream inference engines (e.g., MNN, NCNN, ONNXRuntime) and various attack algorithms.
 
-## Core Features
-
-- **Gray-box (State-matching) & Black-box (Decision-based) Attacks**: Supports both gray-box attacks, which leverage internal model states, and black-box attacks that only rely on final model outputs.
-- **Source-Free State Extraction**: Automatically extracts internal model states via GDB hooks, eliminating the need for source code.
-- **Automated Input Adaptation**: Automatically adapts image channel counts and dimensions to match model requirements, compatible with both color and grayscale inputs.
-- **Optimized for Performance**: Features multi-process parallelization, memory optimization, and detailed logging for efficient and transparent execution.
-
-## Supported Attack Algorithms
-
-- **CMA-ES**: A gray-box (state-matching) algorithm ideal for low- to medium-dimensional inputs- It uses internal model states obtained via GDB hooks to guide its optimization process.
-- **NES (Natural Evolution Strategies)**: A gray-box (state-matching) algorithm suitable for high-dimensional inputs- It has low memory consumption and estimates gradients using internal states from GDB hooks.
-- **Boundary Attack, HopSkipJump, Sign-OPT**: Black-box (decision-based) algorithms that are effective when only the final decision (true/false) of the model is of interest.
-
-## Setup Guide
-
-### 1. Prerequisites
-
-- **Compile C++ Code**: Compile the C++ source code using the provided `CMakeLists-txt` file.
-  ```bash
-  mkdir build
-  cd build
-  cmake ..
-  make
-  ```
-- **Organize Assets**:
-  - Move compiled executables (e.g., `emotion_ferplus_mnn`) to `resources/execution_files/`.
-  - Place model files (`-onnx`, `-mnn`, etc.) in `resources/models/`.
-  - Store images for analysis in `resources/images/`.
-
-### 2. Install Dependencies
-
-Install system libraries and Python packages using the provided script (on Ubuntu 24.04).
-```bash
-bash scripts/install_dependencies.sh
-```
-Activate the Python virtual environment:
-```bash
-source scripts/.venv/bin/activate
-```
-
-## Usage Examples
-
-Here are typical commandline examples for running attacks on the `ssrnet_age_mnn` model.
-
-### NES Attack (Gray-box, State-matching)
-```bash
-python3 src/attackers/nes_attack.py     --executable resources/execution_files/mnist_mnn     --model resources/models/mnist.mnn     --hooks hook_config/mnist_mnn_hook_config.json     --golden-image resources/images/mnist_sample/7/7_0.png     --image outputs/nes_attack_1/best_attack_image_nes_host.png     --output-dir outputs/nes_attack_1     --iterations 200     --learning-rate 20.0     --lr-decay-rate 0.97     --lr-decay-steps 70     --population-size 200     --sigma 0.2     --workers 32     --enable-stagnation-decay     --stagnation-patience 10
+## 🚀 项目架构 (Project Architecture)
 
 ```
+.
+├── hook_config/         # GDB 钩子的 JSON 配置文件
+├── outputs/             # 攻击过程中生成的对抗样本和日志
+├── pre_attack_scripts/  # 攻击前的准备脚本 (如筛选 "false" 图片)
+├── resources/           # 存放所有攻击所需的资源
+│   ├── execution_files/ # 编译好的模型可执行程序
+│   ├── false_image_list/# "false" 图片的列表文件
+│   ├── images/          # 用于测试和攻击的原始图片
+│   └── models/          # AI 模型文件 (.onnx, .mnn, etc.)
+├── results/             # 批量图像分类的结果
+├── scripts/             # 辅助脚本 (如环境安装)
+└── src/                 # 攻击算法的核心 Python 源码
+```
 
-### CMA-ES Attack (Gray-box, State-matching)
+## 📊 完整工作流程 (End-to-End Workflow)
+
+Follow these steps to set up the environment and run an attack.
+
+### 步骤 1：环境设置 (Setup Environment)
+
+1.  **编译 C++ 代码**:
+    Compile the C++ source code using the provided `CMakeLists.txt` file.
+    ```bash
+    mkdir build
+    cd build
+    cmake ..
+    make
+    ```
+
+2.  **安装依赖**:
+    Install system libraries and Python packages using the provided script (tested on Ubuntu 24.04).
+    ```bash
+    bash scripts/install_dependencies.sh
+    ```
+    Activate the Python virtual environment:
+    ```bash
+    source scripts/.venv/bin/activate
+    ```
+
+### 步骤 2：准备资源文件 (Prepare Assets)
+
+- Move compiled executables (e.g., `emotion_ferplus_mnn`) to `resources/execution_files/`.
+- Place model files (`.onnx`, `.mnn`, etc.) in `resources/models/`.
+- Store images for analysis in `resources/images/`.
+
+### 步骤 3：(可选但推荐) 筛选攻击候选图片 (Filter Attack Candidates)
+
+To improve attack efficiency, you can first find images that the model already classifies as "false". These images are often better starting points for an attack.
+
+The `generate_false_image_list.sh` script automates this process.
+
+1.  **授权**:
+    ```bash
+    chmod +x pre_attack_scripts/generate_false_image_list.sh
+    ```
+
+2.  **运行脚本**:
+    Provide the path to the executable you want to test.
+    ```bash
+    # Example for the emotion_ferplus_mnn model
+    ./pre_attack_scripts/generate_false_image_list.sh resources/execution_files/emotion_ferplus_mnn
+    ```
+    The script will generate a file like `resources/false_image_list/emotion_ferplus_mnn_false_list.txt`, containing paths to all images classified as "false".
+
+### 步骤 4：执行攻击 (Run an Attack)
+
+Here are typical command-line examples for running attacks.
+
+#### NES Attack (Gray-box, State-matching)
+```bash
+python3 src/attackers/nes_attack.py \
+    --executable resources/execution_files/mnist_mnn \
+    --model resources/models/mnist.mnn \
+    --hooks hook_config/mnist_mnn_hook_config.json \
+    --golden-image resources/images/mnist_sample/7/7_0.png \
+    --image outputs/nes_attack_1/best_attack_image_nes_host.png \
+    --output-dir outputs/nes_attack_1 \
+    --iterations 200 \
+    --learning-rate 20.0 \
+    --population-size 200
+```
+
+#### CMA-ES Attack (Gray-box, State-matching)
 ```bash
 python3 src/attackers/cmaes_attack.py \
     --executable resources/execution_files/mnist_mnn \
@@ -62,78 +97,27 @@ python3 src/attackers/cmaes_attack.py \
     --image resources/images/mnist_sample/0/0_0.png \
     --output-dir outputs/cmaes_attack_1 \
     --iterations 100 \
-    --population-size 100 \
-    --sigma 5.0 \
-    --l-inf-norm 16.0
+    --population-size 100
 ```
 
 > For other attack algorithms, please refer to the help message of each script via the `-h` flag.
 
-## Model & Input Requirements
+## 🔬 支持的攻击算法 (Supported Attack Algorithms)
 
-| Model                  | Input Dimensions | Channels | Data Type |
-| :--------------------- | :--------------- | :------- | :-------- |
-| `ssrnet_age_mnn`       | 64x64            | 3        | float32   |
-| `emotion_ferplus_mnn`  | 64x64            | 1        | float32   |
-| `gender_googlenet_mnn` | 224x224          | 3        | float32   |
-| `example_mnn`          | 224x224          | 3        | float32   |
-| `ultraface_detector`   | 320x240          | 3        | float32   |
-| `yolov5_detector`      | 640x640          | 3        | float32   |
+- **CMA-ES**: A gray-box (state-matching) algorithm ideal for low- to medium-dimensional inputs. It uses internal model states obtained via GDB hooks to guide its optimization process.
+- **NES (Natural Evolution Strategies)**: A gray-box (state-matching) algorithm suitable for high-dimensional inputs. It has low memory consumption and estimates gradients using internal states from GDB hooks.
+- **Boundary Attack, HopSkipJump, Sign-OPT**: Black-box (decision-based) algorithms that are effective when only the final decision (true/false) of the model is of interest.
 
-- The scripts will automatically detect and adapt the input image's dimensions and channel count to match the model's requirements.
-- It is recommended that the input image and the golden image have the same dimensions and channel count.
+## 🪝 GDB 钩子配置 (GDB Hook Configuration)
 
-## Frequently Asked Questions (FAQ)
+The `hook_config/` directory contains JSON files that tell the attack scripts where to set GDB breakpoints to extract intermediate features from the model executable. You must ensure the `hook_xx.json` file matches the version of the executable to ensure GDB can hit breakpoints correctly.
+
+## ❓ 常见问题 (FAQ)
 
 - **Memory Overflow**: CMA-ES can be memory-intensive with high-resolution images. It is advisable to resize images to smaller dimensions (e.g., 64x64, 128x128) first.
 - **Image Format**: Ensure images are in a common format (JPEG/PNG) and can be read by OpenCV.
-- **Hook Configuration**: The `hook_xx.json` file must match the version of the executable to ensure GDB can hit breakpoints correctly.
 - **GDB Permissions**: If GDB fails to attach, check the `/proc/sys/kernel/yama/ptrace_scope` setting.
 - **Decision-based Attacks**: These attacks require an original image (classified as `false`) and a starting adversarial image (classified as `true`), both of which must have identical dimensions.
-
-## Contributing
-
-We welcome contributions! Please submit an issue or pull request, or contact us via email.
-
-## Original Image Classification Script
-
-The project also includes a utility to classify images using the deployed models. After setup, you can use `scripts/process_images.sh` to sort images based on model predictions.
-
-### Running the Classification Script
-
-First, grant execute permissions:
-```bash
-chmod +x scripts/process_images.sh
-```
-Then, run the script:
-```bash
-./scripts/process_images.sh
-```
-
-The script will:
-1. Iterate through all executables in `resources/execution_files/`.
-2. Create a corresponding subdirectory in the `results/` directory for each executable.
-3. Create `true` and `false` subfolders within each subdirectory.
-4. Process each image in `resources/images/` and copy it to the `true` or `false` folder based on the executable's output.
-
-### Viewing Classification Results
-
-The classified images will be organized in the `results/` directory as follows:
-```
-results/
-├── emotion_ferplus_mnn/
-│   ├── true/
-│   │   ├── image1.jpg
-│   │   └── --
-│   └── false/
-│       ├── image2.jpg
-│       └── --
-└── fsanet_headpose_onnxruntime/
-    ├── true/
-    │   └── --
-    └── false/
-        └── --
-```
 
 
 

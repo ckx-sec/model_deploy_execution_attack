@@ -19,7 +19,7 @@ set(CMAKE_IMPORT_FILE_VERSION 1)
 set(_cmake_targets_defined "")
 set(_cmake_targets_not_defined "")
 set(_cmake_expected_targets "")
-foreach(_cmake_expected_target IN ITEMS onnxruntime::GSL onnxruntime::onnxruntime_flatbuffers onnxruntime::onnxruntime_common onnxruntime::onnxruntime_mlas onnxruntime::onnxruntime_graph onnxruntime::onnxruntime_lora onnxruntime::onnxruntime_framework onnxruntime::onnxruntime_util onnxruntime::onnxruntime_providers onnxruntime::onnxruntime_optimizer onnxruntime::onnxruntime_session onnxruntime::onnxruntime)
+foreach(_cmake_expected_target IN ITEMS onnxruntime::onnxruntime)
   list(APPEND _cmake_expected_targets "${_cmake_expected_target}")
   if(TARGET "${_cmake_expected_target}")
     list(APPEND _cmake_targets_defined "${_cmake_expected_target}")
@@ -55,66 +55,12 @@ if(_IMPORT_PREFIX STREQUAL "/")
   set(_IMPORT_PREFIX "")
 endif()
 
-# Create imported target onnxruntime::GSL
-add_library(onnxruntime::GSL INTERFACE IMPORTED)
-
-set_target_properties(onnxruntime::GSL PROPERTIES
-  INTERFACE_INCLUDE_DIRECTORIES "${_IMPORT_PREFIX}/include"
-  INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "include"
-)
-
-# Create imported target onnxruntime::onnxruntime_flatbuffers
-add_library(onnxruntime::onnxruntime_flatbuffers STATIC IMPORTED)
-
-# Create imported target onnxruntime::onnxruntime_common
-add_library(onnxruntime::onnxruntime_common STATIC IMPORTED)
-
-set_target_properties(onnxruntime::onnxruntime_common PROPERTIES
-  INTERFACE_LINK_LIBRARIES "safeint_interface;onnxruntime::GSL;absl::absl_log;absl::log_internal_log_impl;absl::log_internal_strip;absl::log_internal_message;absl::log_internal_format;absl::synchronization;absl::str_format;absl::flags;absl::log_internal_globals;absl::kernel_timeout_internal;absl::str_format_internal;absl::hash;absl::log_internal_append_truncated;absl::absl_vlog_is_on;absl::flags_commandlineflag;absl::time;absl::symbolize;absl::graphcycles_internal;absl::log_internal_conditions;absl::strings;absl::malloc_internal;absl::demangle_internal;absl::optional;absl::stacktrace;absl::base;absl::demangle_rust;absl::bad_optional_access;absl::strings_internal;absl::debugging_internal;absl::int128;absl::spinlock_wait;absl::decode_rust_punycode;absl::raw_logging_internal;absl::flat_hash_set;absl::flat_hash_map;absl::node_hash_map;absl::node_hash_set;absl::compare;absl::base_internal;absl::nullability;absl::bounded_utf8_length_sequence;absl::log_severity;absl::type_traits;absl::atomic_hook;absl::bits;absl::flags_commandlineflag_internal;absl::hash_container_defaults;absl::numeric_representation;absl::node_slot_policy;absl::core_headers;absl::dynamic_annotations;absl::utf8_for_code_point;absl::errno_saver;absl::absl_check;absl::hash_function_defaults;absl::function_ref;absl::city;absl::low_level_hash;absl::fixed_array;absl::variant;absl::meta;absl::log_internal_voidify;absl::log_sink;absl::log_internal_log_sink_set;absl::log_sink_registry;absl::log_entry;absl::log_globals;absl::log_internal_nullguard;absl::examine_stack;absl::inlined_vector;absl::log_internal_proto;absl::strerror;absl::log_internal_config;absl::raw_hash_map;absl::raw_hash_set;absl::container_memory;absl::algorithm_container;absl::span;absl::log_internal_nullstream;absl::vlog_config_internal;absl::flags_reflection;absl::flags_internal;absl::flags_config;absl::fast_type_id;absl::utility;absl::time_zone;absl::civil_time;absl::string_view;absl::throw_delegate;absl::memory;absl::charset;absl::endian;absl::config;date::date"
-)
-
-# Create imported target onnxruntime::onnxruntime_mlas
-add_library(onnxruntime::onnxruntime_mlas STATIC IMPORTED)
-
-# Create imported target onnxruntime::onnxruntime_graph
-add_library(onnxruntime::onnxruntime_graph STATIC IMPORTED)
-
-# Create imported target onnxruntime::onnxruntime_lora
-add_library(onnxruntime::onnxruntime_lora STATIC IMPORTED)
-
-# Create imported target onnxruntime::onnxruntime_framework
-add_library(onnxruntime::onnxruntime_framework STATIC IMPORTED)
-
-# Create imported target onnxruntime::onnxruntime_util
-add_library(onnxruntime::onnxruntime_util STATIC IMPORTED)
-
-set_target_properties(onnxruntime::onnxruntime_util PROPERTIES
-  INTERFACE_COMPILE_OPTIONS "-Wno-error=comment"
-)
-
-# Create imported target onnxruntime::onnxruntime_providers
-add_library(onnxruntime::onnxruntime_providers STATIC IMPORTED)
-
-# Create imported target onnxruntime::onnxruntime_optimizer
-add_library(onnxruntime::onnxruntime_optimizer STATIC IMPORTED)
-
-# Create imported target onnxruntime::onnxruntime_session
-add_library(onnxruntime::onnxruntime_session STATIC IMPORTED)
-
-set_target_properties(onnxruntime::onnxruntime_session PROPERTIES
-  INTERFACE_LINK_LIBRARIES "\$<LINK_ONLY:onnxruntime::onnxruntime_lora>"
-)
-
 # Create imported target onnxruntime::onnxruntime
-add_library(onnxruntime::onnxruntime INTERFACE IMPORTED)
+add_library(onnxruntime::onnxruntime SHARED IMPORTED)
 
 set_target_properties(onnxruntime::onnxruntime PROPERTIES
-  INTERFACE_LINK_LIBRARIES "onnxruntime::onnxruntime_session;onnxruntime::onnxruntime_optimizer;onnxruntime::onnxruntime_providers;onnxruntime::onnxruntime_lora;onnxruntime::onnxruntime_framework;onnxruntime::onnxruntime_graph;onnxruntime::onnxruntime_util;onnxruntime::onnxruntime_mlas;onnxruntime::onnxruntime_common;onnxruntime::onnxruntime_flatbuffers;nlohmann_json::nlohmann_json;ONNX::onnx;ONNX::onnx_proto;protobuf::libprotobuf-lite;re2::re2;Boost::mp11;safeint_interface;flatbuffers::flatbuffers;onnxruntime::GSL;absl::absl_log;absl::log_internal_log_impl;absl::log_internal_strip;absl::log_internal_message;absl::log_internal_format;absl::synchronization;absl::str_format;absl::flags;absl::log_internal_globals;absl::kernel_timeout_internal;absl::str_format_internal;absl::hash;absl::log_internal_append_truncated;absl::absl_vlog_is_on;absl::flags_commandlineflag;absl::time;absl::symbolize;absl::graphcycles_internal;absl::log_internal_conditions;absl::strings;absl::malloc_internal;absl::demangle_internal;absl::optional;absl::stacktrace;absl::base;absl::demangle_rust;absl::bad_optional_access;absl::strings_internal;absl::debugging_internal;absl::int128;absl::spinlock_wait;absl::decode_rust_punycode;absl::raw_logging_internal;absl::flat_hash_set;absl::flat_hash_map;absl::node_hash_map;absl::node_hash_set;absl::compare;absl::base_internal;absl::nullability;absl::bounded_utf8_length_sequence;absl::log_severity;absl::type_traits;absl::atomic_hook;absl::bits;absl::flags_commandlineflag_internal;absl::hash_container_defaults;absl::numeric_representation;absl::node_slot_policy;absl::core_headers;absl::dynamic_annotations;absl::utf8_for_code_point;absl::errno_saver;absl::absl_check;absl::hash_function_defaults;absl::function_ref;absl::city;absl::low_level_hash;absl::fixed_array;absl::variant;absl::meta;absl::log_internal_voidify;absl::log_sink;absl::log_internal_log_sink_set;absl::log_sink_registry;absl::log_entry;absl::log_globals;absl::log_internal_nullguard;absl::examine_stack;absl::inlined_vector;absl::log_internal_proto;absl::strerror;absl::log_internal_config;absl::raw_hash_map;absl::raw_hash_set;absl::container_memory;absl::algorithm_container;absl::span;absl::log_internal_nullstream;absl::vlog_config_internal;absl::flags_reflection;absl::flags_internal;absl::flags_config;absl::fast_type_id;absl::utility;absl::time_zone;absl::civil_time;absl::string_view;absl::throw_delegate;absl::memory;absl::charset;absl::endian;absl::config;date::date;Eigen3::Eigen;Iconv::Iconv;dl;Threads::Threads;rt;cpuinfo::cpuinfo"
+  INTERFACE_INCLUDE_DIRECTORIES "${_IMPORT_PREFIX}/include/onnxruntime"
 )
-
-if(CMAKE_VERSION VERSION_LESS 3.0.0)
-  message(FATAL_ERROR "This file relies on consumers using CMake 3.0.0 or greater.")
-endif()
 
 # Load information for each installed configuration.
 file(GLOB _cmake_config_files "${CMAKE_CURRENT_LIST_DIR}/onnxruntimeTargets-*.cmake")
@@ -148,24 +94,8 @@ endforeach()
 unset(_cmake_target)
 unset(_cmake_import_check_targets)
 
-# Make sure the targets which have been exported in some other
-# export set exist.
-unset(${CMAKE_FIND_PACKAGE_NAME}_NOT_FOUND_MESSAGE_targets)
-foreach(_target "absl::absl_log" "absl::log_internal_log_impl" "absl::log_internal_strip" "absl::log_internal_message" "absl::log_internal_format" "absl::synchronization" "absl::str_format" "absl::flags" "absl::log_internal_globals" "absl::kernel_timeout_internal" "absl::str_format_internal" "absl::hash" "absl::log_internal_append_truncated" "absl::absl_vlog_is_on" "absl::flags_commandlineflag" "absl::time" "absl::symbolize" "absl::graphcycles_internal" "absl::log_internal_conditions" "absl::strings" "absl::malloc_internal" "absl::demangle_internal" "absl::optional" "absl::stacktrace" "absl::base" "absl::demangle_rust" "absl::bad_optional_access" "absl::strings_internal" "absl::debugging_internal" "absl::int128" "absl::spinlock_wait" "absl::decode_rust_punycode" "absl::raw_logging_internal" "absl::flat_hash_set" "absl::flat_hash_map" "absl::node_hash_map" "absl::node_hash_set" "absl::compare" "absl::base_internal" "absl::nullability" "absl::bounded_utf8_length_sequence" "absl::log_severity" "absl::type_traits" "absl::atomic_hook" "absl::bits" "absl::flags_commandlineflag_internal" "absl::hash_container_defaults" "absl::numeric_representation" "absl::node_slot_policy" "absl::core_headers" "absl::dynamic_annotations" "absl::utf8_for_code_point" "absl::errno_saver" "absl::absl_check" "absl::hash_function_defaults" "absl::function_ref" "absl::city" "absl::low_level_hash" "absl::fixed_array" "absl::variant" "absl::meta" "absl::log_internal_voidify" "absl::log_sink" "absl::log_internal_log_sink_set" "absl::log_sink_registry" "absl::log_entry" "absl::log_globals" "absl::log_internal_nullguard" "absl::examine_stack" "absl::inlined_vector" "absl::log_internal_proto" "absl::strerror" "absl::log_internal_config" "absl::raw_hash_map" "absl::raw_hash_set" "absl::container_memory" "absl::algorithm_container" "absl::span" "absl::log_internal_nullstream" "absl::vlog_config_internal" "absl::flags_reflection" "absl::flags_internal" "absl::flags_config" "absl::fast_type_id" "absl::utility" "absl::time_zone" "absl::civil_time" "absl::string_view" "absl::throw_delegate" "absl::memory" "absl::charset" "absl::endian" "absl::config" "date::date" "nlohmann_json::nlohmann_json" "ONNX::onnx" "ONNX::onnx_proto" "protobuf::libprotobuf-lite" "re2::re2" "flatbuffers::flatbuffers" "Eigen3::Eigen" "cpuinfo::cpuinfo" )
-  if(NOT TARGET "${_target}" )
-    set(${CMAKE_FIND_PACKAGE_NAME}_NOT_FOUND_MESSAGE_targets "${${CMAKE_FIND_PACKAGE_NAME}_NOT_FOUND_MESSAGE_targets} ${_target}")
-  endif()
-endforeach()
-
-if(DEFINED ${CMAKE_FIND_PACKAGE_NAME}_NOT_FOUND_MESSAGE_targets)
-  if(CMAKE_FIND_PACKAGE_NAME)
-    set( ${CMAKE_FIND_PACKAGE_NAME}_FOUND FALSE)
-    set( ${CMAKE_FIND_PACKAGE_NAME}_NOT_FOUND_MESSAGE "The following imported targets are referenced, but are missing: ${${CMAKE_FIND_PACKAGE_NAME}_NOT_FOUND_MESSAGE_targets}")
-  else()
-    message(FATAL_ERROR "The following imported targets are referenced, but are missing: ${${CMAKE_FIND_PACKAGE_NAME}_NOT_FOUND_MESSAGE_targets}")
-  endif()
-endif()
-unset(${CMAKE_FIND_PACKAGE_NAME}_NOT_FOUND_MESSAGE_targets)
+# This file does not depend on other imported targets which have
+# been exported from the same project but in a separate export set.
 
 # Commands beyond this point should not need to know the version.
 set(CMAKE_IMPORT_FILE_VERSION)

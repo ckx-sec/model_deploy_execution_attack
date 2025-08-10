@@ -1,32 +1,36 @@
 [
     {
-        "address": "0x2224", 
-        "original_branch_instruction": "b.gt", 
-        "branch_target": "0x2230", 
-        "instruction": "fcmpe s1,s0", 
+        "address": "0x2224",
+        "original_branch_instruction": "b.gt",
+        "branch_target": "0x2230",
+        "instruction": "fcmpe s1,s0",
         "registers": [
             {
                 "register": "s1"
-            }, 
+            },
             {
                 "register": "0x3f000000"
             }
-        ], 
-        "original_branch_address": "0x2228"
-    }, 
+        ],
+        "original_branch_address": "0x2228",
+        "branch_condition_meaning": "(s1) > (signed) (s0)",
+        "loss_function_name": "Logistic Loss"
+    },
     {
-        "address": "0x223c", 
-        "original_branch_instruction": "b.mi", 
-        "branch_target": "0x231c", 
-        "instruction": "fcmpe s2,s0", 
+        "address": "0x223c",
+        "original_branch_instruction": "b.mi",
+        "branch_target": "0x231c",
+        "instruction": "fcmpe s2,s0",
         "registers": [
             {
                 "register": "0x3ecccccd"
-            }, 
+            },
             {
                 "register": "s2"
             }
-        ], 
-        "original_branch_address": "0x2240"
+        ],
+        "original_branch_address": "0x2240",
+        "branch_condition_meaning": "(s2) is negative (Most Significant Bit is 1) (s0)",
+        "loss_function_name": "Logistic Loss"
     }
 ]
