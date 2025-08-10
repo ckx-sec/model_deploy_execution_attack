@@ -1,0 +1,262 @@
+[
+    {
+        "found_in_function_name": "main", 
+        "instruction_address": "001020f4", 
+        "pcode_operation": " ---  CALL (ram, 0x101a10, 8) , (register, 0x4000, 8) , (unique, 0x10000ed6, 8) , (const, 0x28, 8)", 
+        "originating_imported_function_name": "getSessionOutput", 
+        "usage_type": "TAINT_PROPAGATED_BY_RULE", 
+        "details": "Taint propagated from source (__src(UniquePcode[0x10000ed6])) to destination (__dest(x0)) by memmove rule.", 
+        "tainted_component": "__dest(x0)", 
+        "found_in_function_entry": "00101d00"
+    }, 
+    {
+        "found_in_function_name": "main", 
+        "instruction_address": "0010211c", 
+        "pcode_operation": " ---  CBRANCH (ram, 0x102120, 1) , (unique, 0x100004ae, 1)", 
+        "originating_imported_function_name": "getSessionOutput", 
+        "usage_type": "BRANCH_CONDITION_TAINTED", 
+        "details": "Tainted condition for branch.", 
+        "tainted_component": "UNNAMED(UniquePcode[0x100004ae])", 
+        "found_in_function_entry": "00101d00", 
+        "instruction_mnemonic": "fcsel"
+    }, 
+    {
+        "found_in_function_name": "main", 
+        "instruction_address": "00102130", 
+        "pcode_operation": " ---  CBRANCH (ram, 0x102134, 1) , (unique, 0x100004c6, 1)", 
+        "originating_imported_function_name": "getSessionOutput", 
+        "usage_type": "BRANCH_CONDITION_TAINTED", 
+        "details": "Tainted condition for branch.", 
+        "tainted_component": "UNNAMED(UniquePcode[0x100004c6])", 
+        "found_in_function_entry": "00101d00", 
+        "instruction_mnemonic": "fcsel"
+    }, 
+    {
+        "found_in_function_name": "main", 
+        "instruction_address": "00102138", 
+        "pcode_operation": " ---  CBRANCH (ram, 0x10213c, 1) , (unique, 0x100004ca, 1)", 
+        "originating_imported_function_name": "getSessionOutput", 
+        "usage_type": "BRANCH_CONDITION_TAINTED", 
+        "details": "Tainted condition for branch.", 
+        "tainted_component": "UNNAMED(UniquePcode[0x100004ca])", 
+        "found_in_function_entry": "00101d00", 
+        "instruction_mnemonic": "fcsel"
+    }, 
+    {
+        "found_in_function_name": "main", 
+        "instruction_address": "00102140", 
+        "pcode_operation": " ---  CBRANCH (ram, 0x102144, 1) , (unique, 0x100004ce, 1)", 
+        "originating_imported_function_name": "getSessionOutput", 
+        "usage_type": "BRANCH_CONDITION_TAINTED", 
+        "details": "Tainted condition for branch.", 
+        "tainted_component": "UNNAMED(UniquePcode[0x100004ce])", 
+        "found_in_function_entry": "00101d00", 
+        "instruction_mnemonic": "fcsel"
+    }, 
+    {
+        "found_in_function_name": "main", 
+        "instruction_address": "00102148", 
+        "pcode_operation": " ---  CBRANCH (ram, 0x10214c, 1) , (unique, 0x100004d2, 1)", 
+        "originating_imported_function_name": "getSessionOutput", 
+        "usage_type": "BRANCH_CONDITION_TAINTED", 
+        "details": "Tainted condition for branch.", 
+        "tainted_component": "UNNAMED(UniquePcode[0x100004d2])", 
+        "found_in_function_entry": "00101d00", 
+        "instruction_mnemonic": "fcsel"
+    }, 
+    {
+        "found_in_function_name": "main", 
+        "instruction_address": "00102150", 
+        "pcode_operation": " ---  CBRANCH (ram, 0x102154, 1) , (unique, 0x100004e2, 1)", 
+        "originating_imported_function_name": "getSessionOutput", 
+        "usage_type": "BRANCH_CONDITION_TAINTED", 
+        "details": "Tainted condition for branch.", 
+        "tainted_component": "UNNAMED(UniquePcode[0x100004e2])", 
+        "found_in_function_entry": "00101d00", 
+        "instruction_mnemonic": "fcsel"
+    }, 
+    {
+        "found_in_function_name": "main", 
+        "instruction_address": "00102158", 
+        "pcode_operation": " ---  CBRANCH (ram, 0x10215c, 1) , (unique, 0x100004f2, 1)", 
+        "originating_imported_function_name": "getSessionOutput", 
+        "usage_type": "BRANCH_CONDITION_TAINTED", 
+        "details": "Tainted condition for branch.", 
+        "tainted_component": "UNNAMED(UniquePcode[0x100004f2])", 
+        "found_in_function_entry": "00101d00", 
+        "instruction_mnemonic": "fcsel"
+    }, 
+    {
+        "found_in_function_name": "main", 
+        "instruction_address": "00102160", 
+        "pcode_operation": " ---  CBRANCH (ram, 0x102164, 1) , (unique, 0x10000502, 1)", 
+        "originating_imported_function_name": "getSessionOutput", 
+        "usage_type": "BRANCH_CONDITION_TAINTED", 
+        "details": "Tainted condition for branch.", 
+        "tainted_component": "UNNAMED(UniquePcode[0x10000502])", 
+        "found_in_function_entry": "00101d00", 
+        "instruction_mnemonic": "fcsel"
+    }, 
+    {
+        "found_in_function_name": "main", 
+        "instruction_address": "00102168", 
+        "pcode_operation": " ---  CBRANCH (ram, 0x10216c, 1) , (unique, 0x2080, 1)", 
+        "originating_imported_function_name": "getSessionOutput", 
+        "usage_type": "BRANCH_CONDITION_TAINTED", 
+        "details": "Tainted condition for branch.", 
+        "tainted_component": "UNNAMED(UniquePcode[0x2080])", 
+        "found_in_function_entry": "00101d00", 
+        "instruction_mnemonic": "fcsel"
+    }, 
+    {
+        "found_in_function_name": "main", 
+        "instruction_address": "00102188", 
+        "pcode_operation": "(register, 0x5000, 4) CALL (ram, 0x101bc0, 8) , (register, 0x5000, 4)", 
+        "originating_imported_function_name": "getSessionOutput", 
+        "usage_type": "TAINTED_ARG_TO_CALL_RECURSION", 
+        "details": "Recursive call to expf (CALL) with taints: __x(s0).", 
+        "tainted_component": "N/A", 
+        "found_in_function_entry": "00101d00"
+    }, 
+    {
+        "found_in_function_name": "expf", 
+        "instruction_address": "00101bcc", 
+        "pcode_operation": "(register, 0x5000, 4) CALL (ram, 0x121118, 8) , (register, 0x5000, 4)", 
+        "originating_imported_function_name": "getSessionOutput", 
+        "usage_type": "TAINTED_ARG_TO_CALL_RECURSION", 
+        "details": "Recursive call to expf (CALL) with taints: __x(s0).", 
+        "tainted_component": "N/A", 
+        "found_in_function_entry": "00101bc0"
+    }, 
+    {
+        "found_in_function_name": "main", 
+        "instruction_address": "001021ec", 
+        "pcode_operation": " ---  CBRANCH (ram, 0x102618, 1) , (unique, 0x1400, 1)", 
+        "originating_imported_function_name": "getSessionOutput", 
+        "usage_type": "BRANCH_CONDITION_TAINTED", 
+        "details": "Tainted condition for branch.", 
+        "tainted_component": "UNNAMED(UniquePcode[0x1400])", 
+        "found_in_function_entry": "00101d00", 
+        "instruction_mnemonic": "b.gt"
+    }, 
+    {
+        "found_in_function_name": "main", 
+        "instruction_address": "001021fc", 
+        "pcode_operation": " ---  CBRANCH (ram, 0x10265c, 1) , (unique, 0x10000576, 1)", 
+        "originating_imported_function_name": "getSessionOutput", 
+        "usage_type": "BRANCH_CONDITION_TAINTED", 
+        "details": "Tainted condition for branch.", 
+        "tainted_component": "UNNAMED(UniquePcode[0x10000576])", 
+        "found_in_function_entry": "00101d00", 
+        "instruction_mnemonic": "b.mi"
+    }, 
+    {
+        "found_in_function_name": "main", 
+        "instruction_address": "00102208", 
+        "pcode_operation": " ---  CBRANCH (ram, 0x10268c, 1) , (unique, 0x1400, 1)", 
+        "originating_imported_function_name": "getSessionOutput", 
+        "usage_type": "BRANCH_CONDITION_TAINTED", 
+        "details": "Tainted condition for branch.", 
+        "tainted_component": "UNNAMED(UniquePcode[0x1400])", 
+        "found_in_function_entry": "00101d00", 
+        "instruction_mnemonic": "b.gt"
+    }, 
+    {
+        "found_in_function_name": "main", 
+        "instruction_address": "00102214", 
+        "pcode_operation": " ---  CBRANCH (ram, 0x102680, 1) , (unique, 0x10000582, 1)", 
+        "originating_imported_function_name": "getSessionOutput", 
+        "usage_type": "BRANCH_CONDITION_TAINTED", 
+        "details": "Tainted condition for branch.", 
+        "tainted_component": "UNNAMED(UniquePcode[0x10000582])", 
+        "found_in_function_entry": "00101d00", 
+        "instruction_mnemonic": "b.mi"
+    }, 
+    {
+        "found_in_function_name": "main", 
+        "instruction_address": "00102220", 
+        "pcode_operation": " ---  CBRANCH (ram, 0x102674, 1) , (unique, 0x1400, 1)", 
+        "originating_imported_function_name": "getSessionOutput", 
+        "usage_type": "BRANCH_CONDITION_TAINTED", 
+        "details": "Tainted condition for branch.", 
+        "tainted_component": "UNNAMED(UniquePcode[0x1400])", 
+        "found_in_function_entry": "00101d00", 
+        "instruction_mnemonic": "b.gt"
+    }, 
+    {
+        "found_in_function_name": "main", 
+        "instruction_address": "0010222c", 
+        "pcode_operation": " ---  CBRANCH (ram, 0x102668, 1) , (unique, 0x1000058e, 1)", 
+        "originating_imported_function_name": "getSessionOutput", 
+        "usage_type": "BRANCH_CONDITION_TAINTED", 
+        "details": "Tainted condition for branch.", 
+        "tainted_component": "UNNAMED(UniquePcode[0x1000058e])", 
+        "found_in_function_entry": "00101d00", 
+        "instruction_mnemonic": "b.mi"
+    }, 
+    {
+        "found_in_function_name": "main", 
+        "instruction_address": "00102238", 
+        "pcode_operation": " ---  CBRANCH (ram, 0x1026a4, 1) , (unique, 0x1400, 1)", 
+        "originating_imported_function_name": "getSessionOutput", 
+        "usage_type": "BRANCH_CONDITION_TAINTED", 
+        "details": "Tainted condition for branch.", 
+        "tainted_component": "UNNAMED(UniquePcode[0x1400])", 
+        "found_in_function_entry": "00101d00", 
+        "instruction_mnemonic": "b.gt"
+    }, 
+    {
+        "found_in_function_name": "main", 
+        "instruction_address": "00102244", 
+        "pcode_operation": " ---  CBRANCH (ram, 0x102698, 1) , (unique, 0x1400, 1)", 
+        "originating_imported_function_name": "getSessionOutput", 
+        "usage_type": "BRANCH_CONDITION_TAINTED", 
+        "details": "Tainted condition for branch.", 
+        "tainted_component": "UNNAMED(UniquePcode[0x1400])", 
+        "found_in_function_entry": "00101d00", 
+        "instruction_mnemonic": "b.gt"
+    }, 
+    {
+        "found_in_function_name": "main", 
+        "instruction_address": "00102250", 
+        "pcode_operation": " ---  CBRANCH (ram, 0x102650, 1) , (unique, 0x1400, 1)", 
+        "originating_imported_function_name": "getSessionOutput", 
+        "usage_type": "BRANCH_CONDITION_TAINTED", 
+        "details": "Tainted condition for branch.", 
+        "tainted_component": "UNNAMED(UniquePcode[0x1400])", 
+        "found_in_function_entry": "00101d00", 
+        "instruction_mnemonic": "b.gt"
+    }, 
+    {
+        "found_in_function_name": "main", 
+        "instruction_address": "00102270", 
+        "pcode_operation": " ---  CBRANCH (ram, 0x1026d0, 1) , (unique, 0x1400, 1)", 
+        "originating_imported_function_name": "getSessionOutput", 
+        "usage_type": "BRANCH_CONDITION_TAINTED", 
+        "details": "Tainted condition for branch.", 
+        "tainted_component": "UNNAMED(UniquePcode[0x1400])", 
+        "found_in_function_entry": "00101d00", 
+        "instruction_mnemonic": "b.gt"
+    }, 
+    {
+        "found_in_function_name": "main", 
+        "instruction_address": "00102644", 
+        "pcode_operation": " ---  CALLIND (register, 0x4010, 8) , (register, 0x40b0, 8) , (const, 0xa, 8)", 
+        "originating_imported_function_name": "getSessionOutput", 
+        "usage_type": "TAINTED_ARG_TO_UNRESOLVED_CALL", 
+        "details": "Tainted argument #0 (plVar31(x22)) passed to unresolved call (target: UNNAMED(x2)). (cannot explore target)", 
+        "tainted_component": "plVar31(x22)", 
+        "found_in_function_entry": "00101d00"
+    }, 
+    {
+        "found_in_function_name": "main", 
+        "instruction_address": "001026f0", 
+        "pcode_operation": " ---  CBRANCH (ram, 0x102708, 1) , (register, 0x108, 1)", 
+        "originating_imported_function_name": "getSessionOutput", 
+        "usage_type": "BRANCH_CONDITION_TAINTED", 
+        "details": "Tainted condition for branch.", 
+        "tainted_component": "UNNAMED(tmpZR)", 
+        "found_in_function_entry": "00101d00", 
+        "instruction_mnemonic": "b.ne"
+    }
+]

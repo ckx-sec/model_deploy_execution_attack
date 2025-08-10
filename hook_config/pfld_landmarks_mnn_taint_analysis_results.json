@@ -1,0 +1,98 @@
+[
+    {
+        "found_in_function_name": "main", 
+        "instruction_address": "00102010", 
+        "pcode_operation": "(unique, 0x1400, 1) FLOAT_LESS (register, 0x5000, 4) , (register, 0x5040, 4)", 
+        "originating_imported_function_name": "getSessionOutput", 
+        "usage_type": "TAINTED_COMPARISON", 
+        "details": "Tainted value used in a comparison operation (FLOAT_LESS).", 
+        "tainted_component": "UNNAMED(s0)", 
+        "found_in_function_entry": "00101d40"
+    }, 
+    {
+        "found_in_function_name": "main", 
+        "instruction_address": "00102010", 
+        "pcode_operation": " ---  CBRANCH (ram, 0x10210c, 1) , (unique, 0x1400, 1)", 
+        "originating_imported_function_name": "getSessionOutput", 
+        "usage_type": "BRANCH_CONDITION_TAINTED", 
+        "details": "Tainted condition for branch.", 
+        "tainted_component": "UNNAMED(UniquePcode[0x1400])", 
+        "found_in_function_entry": "00101d40", 
+        "instruction_mnemonic": "b.gt"
+    }, 
+    {
+        "found_in_function_name": "main", 
+        "instruction_address": "0010201c", 
+        "pcode_operation": "(unique, 0x1000, 1) FLOAT_LESSEQUAL (register, 0x50c0, 4) , (register, 0x5000, 4)", 
+        "originating_imported_function_name": "getSessionOutput", 
+        "usage_type": "TAINTED_COMPARISON", 
+        "details": "Tainted value used in a comparison operation (FLOAT_LESSEQUAL).", 
+        "tainted_component": "UNNAMED(s0)", 
+        "found_in_function_entry": "00101d40"
+    }, 
+    {
+        "found_in_function_name": "main", 
+        "instruction_address": "0010201c", 
+        "pcode_operation": " ---  CBRANCH (ram, 0x10210c, 1) , (unique, 0x1000, 1)", 
+        "originating_imported_function_name": "getSessionOutput", 
+        "usage_type": "BRANCH_CONDITION_TAINTED", 
+        "details": "Tainted condition for branch.", 
+        "tainted_component": "UNNAMED(UniquePcode[0x1000])", 
+        "found_in_function_entry": "00101d40", 
+        "instruction_mnemonic": "b.ls"
+    }, 
+    {
+        "found_in_function_name": "main", 
+        "instruction_address": "00102024", 
+        "pcode_operation": " ---  CBRANCH (ram, 0x10210c, 1) , (unique, 0x1400, 1)", 
+        "originating_imported_function_name": "getSessionOutput", 
+        "usage_type": "BRANCH_CONDITION_TAINTED", 
+        "details": "Tainted condition for branch.", 
+        "tainted_component": "UNNAMED(UniquePcode[0x1400])", 
+        "found_in_function_entry": "00101d40", 
+        "instruction_mnemonic": "b.gt"
+    }, 
+    {
+        "found_in_function_name": "main", 
+        "instruction_address": "00102030", 
+        "pcode_operation": " ---  CBRANCH (ram, 0x10210c, 1) , (unique, 0x1000, 1)", 
+        "originating_imported_function_name": "getSessionOutput", 
+        "usage_type": "BRANCH_CONDITION_TAINTED", 
+        "details": "Tainted condition for branch.", 
+        "tainted_component": "UNNAMED(UniquePcode[0x1000])", 
+        "found_in_function_entry": "00101d40", 
+        "instruction_mnemonic": "b.ls"
+    }, 
+    {
+        "found_in_function_name": "main", 
+        "instruction_address": "00102038", 
+        "pcode_operation": "(register, 0x108, 1) INT_NOTEQUAL (unique, 0x11f80, 8) , (unique, 0x11f80, 8)", 
+        "originating_imported_function_name": "getSessionOutput", 
+        "usage_type": "TAINTED_COMPARISON", 
+        "details": "Tainted value used in a comparison operation (INT_NOTEQUAL).", 
+        "tainted_component": "puVar5(x0)", 
+        "found_in_function_entry": "00101d40"
+    }, 
+    {
+        "found_in_function_name": "main", 
+        "instruction_address": "0010203c", 
+        "pcode_operation": " ---  CBRANCH (ram, 0x102000, 1) , (register, 0x108, 1)", 
+        "originating_imported_function_name": "getSessionOutput", 
+        "usage_type": "BRANCH_CONDITION_TAINTED", 
+        "details": "Tainted condition for branch.", 
+        "tainted_component": "UNNAMED(tmpZR)", 
+        "found_in_function_entry": "00101d40", 
+        "instruction_mnemonic": "b.ne"
+    }, 
+    {
+        "found_in_function_name": "main", 
+        "instruction_address": "001020b8", 
+        "pcode_operation": " ---  CBRANCH (ram, 0x102168, 1) , (register, 0x108, 1)", 
+        "originating_imported_function_name": "getSessionOutput", 
+        "usage_type": "BRANCH_CONDITION_TAINTED", 
+        "details": "Tainted condition for branch.", 
+        "tainted_component": "UNNAMED(tmpZR)", 
+        "found_in_function_entry": "00101d40", 
+        "instruction_mnemonic": "b.ne"
+    }
+]

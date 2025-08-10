@@ -1,0 +1,90 @@
+[
+    {
+        "found_in_function_name": "main", 
+        "instruction_address": "00102358", 
+        "pcode_operation": " ---  CBRANCH (ram, 0x102414, 1) , (unique, 0x100005cd, 1)", 
+        "originating_imported_function_name": "getSessionOutput", 
+        "usage_type": "BRANCH_CONDITION_TAINTED", 
+        "details": "Tainted condition for branch.", 
+        "tainted_component": "UNNAMED(UniquePcode[0x100005cd])", 
+        "found_in_function_entry": "00101ec0", 
+        "instruction_mnemonic": "b.mi"
+    }, 
+    {
+        "found_in_function_name": "main", 
+        "instruction_address": "001023ec", 
+        "pcode_operation": " ---  CBRANCH (ram, 0x1024d4, 1) , (register, 0x108, 1)", 
+        "originating_imported_function_name": "getSessionOutput", 
+        "usage_type": "BRANCH_CONDITION_TAINTED", 
+        "details": "Tainted condition for branch.", 
+        "tainted_component": "UNNAMED(tmpZR)", 
+        "found_in_function_entry": "00101ec0", 
+        "instruction_mnemonic": "b.ne"
+    }, 
+    {
+        "found_in_function_name": "main", 
+        "instruction_address": "00102424", 
+        "pcode_operation": " ---  CBRANCH (ram, 0x10242c, 1) , (unique, 0x100005d1, 1)", 
+        "originating_imported_function_name": "getSessionOutput", 
+        "usage_type": "BRANCH_CONDITION_TAINTED", 
+        "details": "Tainted condition for branch.", 
+        "tainted_component": "UNNAMED(UniquePcode[0x100005d1])", 
+        "found_in_function_entry": "00101ec0", 
+        "instruction_mnemonic": "b.mi"
+    }, 
+    {
+        "found_in_function_name": "main", 
+        "instruction_address": "0010243c", 
+        "pcode_operation": " ---  CBRANCH (ram, 0x102478, 1) , (unique, 0x100005d5, 1)", 
+        "originating_imported_function_name": "getSessionOutput", 
+        "usage_type": "BRANCH_CONDITION_TAINTED", 
+        "details": "Tainted condition for branch.", 
+        "tainted_component": "UNNAMED(UniquePcode[0x100005d5])", 
+        "found_in_function_entry": "00101ec0", 
+        "instruction_mnemonic": "b.mi"
+    }, 
+    {
+        "found_in_function_name": "main", 
+        "instruction_address": "00102358", 
+        "pcode_operation": " ---  CBRANCH (ram, 0x102414, 1) , (unique, 0x100005cd, 1)", 
+        "originating_imported_function_name": "getSessionOutput", 
+        "usage_type": "BRANCH_CONDITION_TAINTED", 
+        "details": "Tainted condition for branch.", 
+        "tainted_component": "UNNAMED(UniquePcode[0x100005cd])", 
+        "found_in_function_entry": "00101ec0", 
+        "instruction_mnemonic": "b.mi"
+    }, 
+    {
+        "found_in_function_name": "main", 
+        "instruction_address": "001023ec", 
+        "pcode_operation": " ---  CBRANCH (ram, 0x1024d4, 1) , (register, 0x108, 1)", 
+        "originating_imported_function_name": "getSessionOutput", 
+        "usage_type": "BRANCH_CONDITION_TAINTED", 
+        "details": "Tainted condition for branch.", 
+        "tainted_component": "UNNAMED(tmpZR)", 
+        "found_in_function_entry": "00101ec0", 
+        "instruction_mnemonic": "b.ne"
+    }, 
+    {
+        "found_in_function_name": "main", 
+        "instruction_address": "00102424", 
+        "pcode_operation": " ---  CBRANCH (ram, 0x10242c, 1) , (unique, 0x100005d1, 1)", 
+        "originating_imported_function_name": "getSessionOutput", 
+        "usage_type": "BRANCH_CONDITION_TAINTED", 
+        "details": "Tainted condition for branch.", 
+        "tainted_component": "UNNAMED(UniquePcode[0x100005d1])", 
+        "found_in_function_entry": "00101ec0", 
+        "instruction_mnemonic": "b.mi"
+    }, 
+    {
+        "found_in_function_name": "main", 
+        "instruction_address": "0010243c", 
+        "pcode_operation": " ---  CBRANCH (ram, 0x102478, 1) , (unique, 0x100005d5, 1)", 
+        "originating_imported_function_name": "getSessionOutput", 
+        "usage_type": "BRANCH_CONDITION_TAINTED", 
+        "details": "Tainted condition for branch.", 
+        "tainted_component": "UNNAMED(UniquePcode[0x100005d5])", 
+        "found_in_function_entry": "00101ec0", 
+        "instruction_mnemonic": "b.mi"
+    }
+]

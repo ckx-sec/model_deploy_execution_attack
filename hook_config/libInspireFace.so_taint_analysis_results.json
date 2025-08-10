@@ -1,0 +1,52 @@
+[
+    {
+        "operands": [
+            "x19", 
+            "0x0"
+        ], 
+        "address": "0037dd48", 
+        "pcode_operation": "(unique, 0x18f80, 1) INT_EQUAL (register, 0x4098, 8) , (const, 0x0, 8)", 
+        "instruction": "cbz", 
+        "details": "Tainted value used in a comparison operation (INT_EQUAL)."
+    }, 
+    {
+        "operands": [
+            "x0", 
+            "0x0"
+        ], 
+        "address": "00177e9c", 
+        "pcode_operation": "(unique, 0x18f80, 1) INT_NOTEQUAL (register, 0x4000, 8) , (const, 0x0, 8)", 
+        "instruction": "cbz", 
+        "details": "Tainted value used in a comparison operation (INT_NOTEQUAL)."
+    }, 
+    {
+        "operands": [
+            "UniquePcode[0x100001c2]", 
+            "x1"
+        ], 
+        "address": "00177eb0", 
+        "pcode_operation": "(register, 0x108, 1) INT_EQUAL (unique, 0x100001c2, 8) , (register, 0x4008, 8)", 
+        "instruction": "cmp", 
+        "details": "Tainted value used in a comparison operation (INT_EQUAL)."
+    }, 
+    {
+        "operands": [
+            "s0", 
+            "0x3f733333"
+        ], 
+        "address": "0017862c", 
+        "pcode_operation": "(unique, 0x2d00, 1) FLOAT_LESS (register, 0x5000, 4) , (const, 0x3f733333, 4)", 
+        "instruction": "cset", 
+        "details": "Tainted value used in a comparison operation (FLOAT_LESS)."
+    }, 
+    {
+        "operands": [
+            "0x3f6147ae", 
+            "s0"
+        ], 
+        "address": "001786f4", 
+        "pcode_operation": "(unique, 0x2d00, 1) FLOAT_LESS (const, 0x3f6147ae, 4) , (register, 0x5000, 4)", 
+        "instruction": "cset", 
+        "details": "Tainted value used in a comparison operation (FLOAT_LESS)."
+    }
+]

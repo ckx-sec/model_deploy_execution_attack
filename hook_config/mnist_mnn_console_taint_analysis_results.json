@@ -1,0 +1,12 @@
+[
+    {
+        "found_in_function_name": "main", 
+        "instruction_address": "00103ed0", 
+        "pcode_operation": " ---  CALL (ram, 0x103370, 8) , (register, 0x4000, 8) , (register, 0x4008, 8)", 
+        "originating_imported_function_name": "getSessionOutput", 
+        "usage_type": "TAINTED_ARG_TO_CALL_NO_PARAM_MAP_OR_VARARGS", 
+        "details": "Tainted PCode args (PCodeArg#0:UNNAMED(x0), PCodeArg#1:UNNAMED(x1)) to __stack_chk_fail (CALL) cannot map to HighProto (count 0).", 
+        "tainted_component": "N/A", 
+        "found_in_function_entry": "00103390"
+    }
+]

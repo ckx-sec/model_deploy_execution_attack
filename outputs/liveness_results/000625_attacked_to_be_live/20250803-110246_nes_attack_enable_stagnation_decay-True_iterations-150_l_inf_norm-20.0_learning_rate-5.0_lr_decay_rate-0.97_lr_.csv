@@ -1,0 +1,3 @@
+iteration,total_queries,loss,iter_time_s,total_time_s
+1,202,0.001356,7.02,7.50
+2,403,0.000066,7.00,14.59

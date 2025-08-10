@@ -1,0 +1,13 @@
+[
+    {
+        "found_in_function_name": "Process", 
+        "instruction_address": "001787a0", 
+        "pcode_operation": " ---  CBRANCH (ram, 0x1787c4, 1) , (register, 0x108, 1)", 
+        "originating_imported_function_name": "address_001786dc", 
+        "usage_type": "BRANCH_CONDITION_TAINTED", 
+        "details": "Tainted condition for branch.", 
+        "tainted_component": "UNNAMED(tmpZR)", 
+        "found_in_function_entry": "00178438", 
+        "instruction_mnemonic": "b.ne"
+    }
+]
