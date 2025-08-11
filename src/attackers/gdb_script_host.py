@@ -115,10 +115,28 @@ def set_breakpoints(base_address, hooks_path):
     gdb.execute("delete breakpoints")
     for hook in hooks:
         try:
+            # Adapt to potentially nested 'registers' format in JSON
+            raw_registers = hook.get('registers', [])
+            registers_to_watch = []
+            if raw_registers and isinstance(raw_registers[0], dict):
+                # New format: [{"register": "x0"}, {"register": "x1"}]
+                registers_to_watch = [item['register'] for item in raw_registers]
+            else:
+                # Original format: ["x0", "x1"]
+                registers_to_watch = raw_registers
+            
+            # --- Filter out hooks with complex references ---
+            should_ignore = any("StackDirect" in r or "UniquePcode" in r for r in registers_to_watch)
+            if should_ignore:
+                print(f"[GDB SCRIPT INFO] Ignoring hook at {hook.get('address')} due to unsupported reference (StackDirect/UniquePcode).")
+                continue # Skip this hook entirely
+
             relative_addr = int(hook['address'], 16)
             absolute_addr = base_address + relative_addr
-            HookBreakpoint(f"*{hex(absolute_addr)}", hook['address'], hook['registers'])
-            print(f"[GDB SCRIPT INFO] Set breakpoint at {hex(absolute_addr)} (base {hex(base_address)} + offset {hook['address']})")
+
+            HookBreakpoint(f"*{hex(absolute_addr)}", hook['address'], registers_to_watch)
+            print(f"[GDB SCRIPT INFO] Set breakpoint at {hex(absolute_addr)} (base {hex(base_address)} + offset {hook['address']}) for registers {registers_to_watch}")
+        
         except Exception as e:
             print(f"[GDB SCRIPT ERROR] Failed to set breakpoint for hook {hook}: {e}")
 

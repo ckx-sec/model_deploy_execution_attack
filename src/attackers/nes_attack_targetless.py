@@ -110,9 +110,20 @@ def _run_executable_and_parse_hooks(image_path_on_host, args):
         os.path.abspath(args.hooks) # Pass the absolute path to the hooks file as the last argument
     ]
 
+    # --- Set up the environment with LD_LIBRARY_PATH (CRITICAL FIX) ---
+    # This is crucial for the executable to find the MNN/ONNXRuntime libraries when run under GDB.
+    script_dir = os.path.dirname(__file__)
+    project_root = os.path.abspath(os.path.join(script_dir, '..', '..'))
+    mnn_lib_path = os.path.join(project_root, 'third_party', 'mnn', 'lib')
+    onnx_lib_path = os.path.join(project_root, 'third_party', 'onnxruntime', 'lib')
+    
+    env = os.environ.copy()
+    existing_ld_path = env.get('LD_LIBRARY_PATH', '')
+    env['LD_LIBRARY_PATH'] = f"{mnn_lib_path}:{onnx_lib_path}:{existing_ld_path}"
+
     try:
         # Use a longer timeout as GDB startup can be slow.
-        result = subprocess.run(command, check=True, capture_output=True, text=True, timeout=60)
+        result = subprocess.run(command, check=True, capture_output=True, text=True, timeout=60, env=env)
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
         stderr = e.stderr if hasattr(e, 'stderr') else "Timeout or error during execution"
         print(f"Error running host executable for '{image_path_on_host}': {stderr}")
@@ -188,6 +199,82 @@ def run_attack_iteration(image_content, args, workdir, image_name_on_host):
     return is_successful, hooked_values
 
 
+def print_loss_scheme(initial_hooks, hook_config, margin=1.0):
+    """
+    Prints a detailed breakdown of the loss calculation for the initial image.
+    """
+    print("\n" + "="*50)
+    print("--- Initial Loss Function Analysis ---")
+    print("="*50)
+    total_loss = 0.0
+    hooks_processed = 0
+
+    if not initial_hooks:
+        print("Warning: No hook values were captured for the initial image. The executable may have crashed or failed to run correctly.")
+        print("The initial loss will be considered zero as no hooks are active.")
+        final_loss = 0.0
+    else:
+        for hook_info in hook_config:
+            address = hook_info.get("address")
+            branch_instruction = hook_info.get("original_branch_instruction")
+            weight = float(hook_info.get("weight", 1.0))
+
+            if not all([address, branch_instruction]):
+                continue
+
+            print(f"Hook at {address}:")
+            print(f"  - Branch Condition: '{branch_instruction}'")
+            print(f"  - Weight: {weight}")
+
+            values = initial_hooks.get(address)
+            loss_contribution = 0.0  # Default to 0
+            
+            if values is None or len(values) < 2:
+                print(f"  - Hook Values (v1, v2): Not found or insufficient data.")
+                print(f"  - Status: MISSING HOOK")
+            else:
+                v1, v2 = values[0], values[1]
+                loss = 0.0
+                formula = "N/A"
+                print(f"  - Hook Values (v1, v2): ({v1:.4f}, {v2:.4f})")
+
+                # The goal is to make the branch condition TRUE.
+                # The loss formula represents how "false" the condition is.
+                if branch_instruction in ["b.gt", "b.hi"]:
+                    formula = f"max(0, {margin:.2f} - ({v1:.4f} - {v2:.4f}))"
+                    loss = np.maximum(0, margin - (v1 - v2))
+                elif branch_instruction in ["b.ge", "b.hs", "b.cs"]:
+                    formula = f"log(1 + exp(-({v1:.4f} - {v2:.4f})))"
+                    loss = np.log(1 + np.exp(-(v1 - v2)))
+                elif branch_instruction in ["b.lt", "b.lo", "b.cc"]:
+                    formula = f"max(0, {margin:.2f} - ({v2:.4f} - {v1:.4f}))"
+                    loss = np.maximum(0, margin - (v2 - v1))
+                elif branch_instruction in ["b.le", "b.ls"]:
+                    formula = f"log(1 + exp(-({v2:.4f} - {v1:.4f})))"
+                    loss = np.log(1 + np.exp(-(v2 - v1)))
+                elif branch_instruction == "b.eq":
+                    formula = f"log(cosh({v1:.4f} - {v2:.4f}))"
+                    loss = np.log(np.cosh(v1 - v2))
+                elif branch_instruction == "b.ne":
+                    formula = f"max(0, {margin:.2f} - abs({v1:.4f} - {v2:.4f}))"
+                    loss = np.maximum(0, margin - np.abs(v1 - v2))
+                
+                loss_contribution = loss * weight
+                print(f"  - Loss Formula Applied: {formula}")
+                print(f"  - Calculated Loss: {loss:.6f}")
+
+            print(f"  - Weighted Loss Contribution: {loss_contribution:.6f}")
+            total_loss += loss_contribution
+            hooks_processed += 1
+            print("-" * 25)
+    
+        # The final loss is the sum of all contributions, not the average.
+        final_loss = total_loss
+            
+    print(f"\nInitial Total Loss (Sum): {final_loss:.6f}")
+    print("="*50)
+
+
 def calculate_targetless_loss(current_hooks, hook_config, margin=1.0):
     """
     Calculates a "target-less" loss based on the original branch instruction in the hook config.
@@ -215,7 +302,8 @@ def calculate_targetless_loss(current_hooks, hook_config, margin=1.0):
 
         values = current_hooks.get(address)
         if values is None or len(values) < 2:
-            total_loss += float('inf')  # Penalize heavily if hook data is missing
+            # If hook data is missing, its contribution to the loss is 0.
+            # We still increment hooks_processed to maintain a stable average baseline.
             hooks_processed +=1
             continue
 
@@ -226,18 +314,22 @@ def calculate_targetless_loss(current_hooks, hook_config, margin=1.0):
         # We model the loss based on how "false" the condition is.
         if branch_instruction in ["b.gt", "b.hi"]:  # Greater Than (signed/unsigned)
             # Loss for v1 > v2. We want v1 - v2 to be positive.
-            loss = np.log(1 + np.exp(-(v1 - v2)))
+            # Use hinge loss with margin to enforce strict inequality.
+            loss = np.maximum(0, margin - (v1 - v2))
             
         elif branch_instruction in ["b.ge", "b.hs", "b.cs"]: # Greater or Equal
             # Loss for v1 >= v2. We want v1 - v2 to be non-negative.
+            # softplus(v2-v1) is a smooth version of max(0, v2-v1)
             loss = np.log(1 + np.exp(-(v1 - v2)))
 
         elif branch_instruction in ["b.lt", "b.lo", "b.cc"]: # Less Than
             # Loss for v1 < v2. We want v2 - v1 to be positive.
-            loss = np.log(1 + np.exp(-(v2 - v1)))
+            # Use hinge loss with margin to enforce strict inequality.
+            loss = np.maximum(0, margin - (v2 - v1))
 
         elif branch_instruction in ["b.le", "b.ls"]: # Less or Equal
             # Loss for v1 <= v2. We want v2 - v1 to be non-negative.
+            # softplus(v1-v2) is a smooth version of max(0, v1-v2)
             loss = np.log(1 + np.exp(-(v2 - v1)))
 
         elif branch_instruction == "b.eq": # Equal
@@ -255,9 +347,8 @@ def calculate_targetless_loss(current_hooks, hook_config, margin=1.0):
         total_loss += loss * weight
         hooks_processed += 1
 
-    # Average the loss over the number of hooks to keep it scaled
-    if hooks_processed > 0:
-        return total_loss / hooks_processed
+    # Return the sum of all losses, not the average.
+    return total_loss
     
     return 0.0
 
@@ -459,6 +550,20 @@ def main(args):
             print("--- Detected Color Mode: Processing in 3-channel mode. ---")
 
 
+        # --- Display Initial Loss Scheme ---
+        print("\n--- Calculating initial loss for original image ---")
+        is_success_encoding, encoded_original_image = cv2.imencode(".png", original_image.astype(np.uint8))
+        if not is_success_encoding:
+            raise RuntimeError("Failed to encode original image for initial analysis.")
+        
+        _, initial_hooks = run_attack_iteration(encoded_original_image.tobytes(), args, workdir, "initial_image_check.png")
+        total_queries += 1 # Account for the initial analysis run
+        
+        # Print the detailed breakdown of the loss
+        print_loss_scheme(initial_hooks, hook_config)
+
+        print("\n--- Starting Attack Loop ---")
+        
         attack_image = original_image.copy().astype(np.float32)
 
         # Adam optimizer parameters
